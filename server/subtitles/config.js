@@ -30,7 +30,7 @@ const DEFAULT_SUBSCENE_URL = 'https://sub-scene.com';
 
 // The API asks callers to identify themselves; a generic agent gets rate-limited
 // harder and is against OpenSubtitles' terms.
-const DEFAULT_USER_AGENT = 'media-player v1.0.0';
+const DEFAULT_USER_AGENT = 'homereel v1.0.0';
 
 // A subtitle is tens of kilobytes and an archive of one is not much more.
 // Anything past this is not a subtitle, whatever the provider claims.

@@ -518,7 +518,7 @@ at [opensubtitles.com/en/consumers](https://www.opensubtitles.com/en/consumers),
 tick the box, and restart with `./1_run`. You can check the key directly:
 
 ```bash
-curl -s -H "Api-Key: YOUR_KEY" -H "User-Agent: media-player v1.0.0" \
+curl -s -H "Api-Key: YOUR_KEY" -H "User-Agent: homereel v1.0.0" \
   -H "Content-Type: application/json" -d '{"file_id":1}' \
   https://api.opensubtitles.com/api/v1/download
 ```
