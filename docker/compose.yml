@@ -1,0 +1,41 @@
+# Start this with ./scripts/run-docker, which loads .env and points Compose at
+# the repository root.
+name: media-player
+
+services:
+  media-player:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: media-player
+    container_name: media-player
+    restart: unless-stopped
+
+    # Same port inside and out, so there is only ever one number to remember.
+    ports:
+      - "${PORT:-5000}:${PORT:-5000}"
+
+    environment:
+      - PORT=${PORT:-5000}
+      - MEDIA_DIR=/media
+      # Subtitle downloading. All optional: with no keys the feature reports
+      # itself as unconfigured and the player behaves as it always did.
+      - OPENSUBTITLES_API_KEY=${OPENSUBTITLES_API_KEY:-}
+      - SUBDL_API_KEY=${SUBDL_API_KEY:-}
+      - SUBTITLE_LANGUAGES=${SUBTITLE_LANGUAGES:-}
+      - SUBTITLE_PROVIDERS=${SUBTITLE_PROVIDERS:-}
+      # Note "-" and not ":-": an unset value takes the app's built-in address,
+      # while an empty one in .env means the user turned Subscene off and must
+      # stay empty.
+      - SUBSCENE_URL=${SUBSCENE_URL-https://sub-scene.com}
+
+    volumes:
+      # Your media folder. Writable, because downloaded subtitles are saved next
+      # to the video they belong to - that is what makes them survive a restart
+      # and show up in the player's existing file list.
+      #
+      # Writes are narrow by construction: server/subtitles/store.js is the only
+      # code that writes, it only ever creates .srt and .vtt files named after an
+      # existing video, and it never overwrites. Everything still goes through
+      # resolveMediaPath(), so nothing can be written outside this folder.
+      - ${MEDIA_DIR:?MEDIA_DIR is not set - copy .env.example to .env first}:/media

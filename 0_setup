@@ -1,0 +1,311 @@
+#!/usr/bin/env bash
+#
+# One-time setup. Gets this machine ready to run the media player.
+#
+#   ./0_setup            interactive
+#   ./0_setup --yes      no prompts; accepts defaults and installs what is needed
+#
+# It will:
+#   1. ask where your media lives and write .env
+#   2. check for Docker or Node.js, offering to install Docker if neither exists
+#   3. build the application
+#
+# Nothing is installed on your system without you saying yes.
+#
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=scripts/lib.sh
+. "$ROOT_DIR/scripts/lib.sh"
+
+ASSUME_YES=0
+case "${1:-}" in
+  --yes | -y) ASSUME_YES=1 ;;
+  "") ;;
+  *) printf 'Unknown option %s. Usage: ./0_setup [--yes]\n' "${1}" >&2; exit 1 ;;
+esac
+
+# Interactive only when there is a real terminal to read from. Written as an if
+# rather than a && chain: under `set -e` a failing chain would abort the script.
+INTERACTIVE=0
+if [ -t 0 ] && [ "$ASSUME_YES" -eq 0 ]; then
+  INTERACTIVE=1
+fi
+
+say() { printf '%s\n' "$*"; }
+step() { printf '\n==> %s\n\n' "$*"; }
+
+# confirm() comes from scripts/lib.sh and honours ASSUME_YES.
+
+# ---------------------------------------------------------------------------
+# 1. Where does the media live?
+# ---------------------------------------------------------------------------
+
+configure_env() {
+  step "Configuration"
+
+  if [ -f "$ROOT_DIR/.env" ]; then
+    say "  Found an existing .env:"
+    say ""
+    sed 's/^/      /' "$ROOT_DIR/.env" | grep -v '^\s*#' | grep . || true
+    say ""
+    if ! confirm "  Reconfigure it?"; then
+      say "  Keeping your existing .env."
+      return 0
+    fi
+  fi
+
+  # A sensible starting guess for this platform.
+  local default_dir="$HOME/Videos"
+  [ "$(uname -s)" = "Darwin" ] && default_dir="$HOME/Movies"
+
+  local media_dir="${MEDIA_DIR:-$default_dir}"
+  if [ "$INTERACTIVE" -eq 1 ]; then
+    say "  Which folder holds your videos and music?"
+    say "  Nothing in it is changed; the only files ever added are subtitles you download."
+    say ""
+    printf '  Media folder [%s]: ' "$default_dir"
+    local answer
+    read -r answer || true
+    [ -n "$answer" ] && media_dir="$answer"
+  fi
+
+  # Expand a leading ~, which the shell does not do inside a variable.
+  case "$media_dir" in "~"/*) media_dir="$HOME/${media_dir#\~/}" ;; esac
+
+  if [ ! -d "$media_dir" ]; then
+    say ""
+    say "  Warning: that folder does not exist yet:"
+    say "      $media_dir"
+    if [ "$INTERACTIVE" -eq 1 ] && ! confirm "  Use it anyway?"; then
+      die "Setup stopped. Re-run ./0_setup and give a folder that exists."
+    fi
+  fi
+
+  cat > "$ROOT_DIR/.env" <<EOF
+# Written by ./0_setup. Edit freely.
+
+# Folder holding your media. The app only ever adds the subtitles you download.
+MEDIA_DIR=$media_dir
+
+# Port the app listens on.
+PORT=${PORT:-5000}
+
+# Vite dev-server port, used only by ./scripts/run-dev.
+WEB_DEV_PORT=${WEB_DEV_PORT:-5173}
+
+# How ./1_run starts the app: docker or node. Set by ./0_setup.
+RUN_MODE=node
+EOF
+
+  say ""
+  say "  Wrote .env"
+}
+
+# ---------------------------------------------------------------------------
+# 2. Docker and Node.js
+# ---------------------------------------------------------------------------
+
+have_docker() { command -v docker >/dev/null 2>&1; }
+
+# Installed is not the same as usable: the daemon may be stopped, or the user
+# may not be in the docker group yet.
+docker_usable() { have_docker && docker info >/dev/null 2>&1; }
+
+have_node() {
+  command -v node >/dev/null 2>&1 &&
+    [ "$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)" -ge 18 ]
+}
+
+install_docker() {
+  local os
+  os="$(uname -s)"
+
+  if [ "$os" = "Darwin" ]; then
+    if command -v brew >/dev/null 2>&1; then
+      say "  Installing Docker Desktop with Homebrew..."
+      brew install --cask docker || return 1
+      say ""
+      say "  Now open Docker Desktop once so it can finish setting up,"
+      say "  then re-run ./0_setup."
+      return 1
+    fi
+    say "  Install Docker Desktop from https://docs.docker.com/desktop/install/mac-install/"
+    say "  then re-run ./0_setup."
+    return 1
+  fi
+
+  if [ "$os" != "Linux" ]; then
+    say "  Automatic install is not supported on $os."
+    say "  See https://docs.docker.com/get-docker/ then re-run ./0_setup."
+    return 1
+  fi
+
+  say "  Running Docker's official install script. This needs sudo."
+  say ""
+  curl -fsSL https://get.docker.com | sh || return 1
+
+  # Without this, every docker command needs sudo.
+  if [ "$(id -u)" -ne 0 ]; then
+    say ""
+    say "  Adding $USER to the docker group..."
+    sudo usermod -aG docker "$USER" || true
+  fi
+
+  # Some minimal images and WSL setups do not run systemd.
+  if command -v systemctl >/dev/null 2>&1; then
+    sudo systemctl enable --now docker >/dev/null 2>&1 || true
+  fi
+
+  return 0
+}
+
+choose_runtime() {
+  step "Checking what is installed"
+
+  if docker_usable; then
+    say "  Docker    : ready"
+    RUNTIME=docker
+  elif have_docker; then
+    say "  Docker    : installed, but not usable yet"
+    # Distinguish "daemon down" from "you are not in the docker group", because
+    # the fixes are completely different.
+    if docker info 2>&1 | grep -qi "permission denied"; then
+      say ""
+      say "  Your user is not in the docker group. Fix it with:"
+      say ""
+      say "      sudo usermod -aG docker $USER"
+      say ""
+      say "  Then log out and back in (a new terminal is not enough),"
+      say "  or run 'newgrp docker' in this shell."
+    else
+      say ""
+      say "  The Docker daemon does not appear to be running."
+      if command -v systemctl >/dev/null 2>&1 && confirm "  Start it now?"; then
+        sudo systemctl start docker && say "  Started."
+      else
+        say "  Start Docker Desktop, or: sudo systemctl start docker"
+      fi
+    fi
+    docker_usable && RUNTIME=docker || RUNTIME=""
+  else
+    say "  Docker    : not installed"
+    RUNTIME=""
+  fi
+
+  if have_node; then
+    say "  Node.js   : $(node -v)"
+  elif command -v node >/dev/null 2>&1; then
+    say "  Node.js   : $(node -v) - too old, need 18 or newer"
+  else
+    say "  Node.js   : not installed"
+  fi
+
+  # Already have a working runtime? Prefer Docker, it needs nothing else.
+  if [ "$RUNTIME" = "docker" ]; then
+    say ""
+    say "  Using Docker."
+    return 0
+  fi
+
+  if have_node; then
+    say ""
+    say "  Using Node.js. (Docker also works, if you would rather have it.)"
+    RUNTIME=node
+    return 0
+  fi
+
+  # Neither is available - this is the only point where we need to install.
+  say ""
+  say "  Neither Docker nor Node.js 18+ is available, so there is nothing"
+  say "  to run the app with."
+  say ""
+  say "  Docker is the easier option: it bundles everything, and nothing"
+  say "  else gets installed on your system."
+  say ""
+  say "  This would run, as root:"
+  say ""
+  say "      curl -fsSL https://get.docker.com | sh"
+  say "      sudo usermod -aG docker $USER"
+  say ""
+
+  if confirm "  Install Docker now?"; then
+    if install_docker && docker_usable; then
+      RUNTIME=docker
+      say ""
+      say "  Docker installed."
+      return 0
+    fi
+    # usermod does not affect the running shell, so this is the common landing spot.
+    if have_docker; then
+      say ""
+      say "  Docker is installed but this shell cannot use it yet."
+      say "  Log out and back in, then run ./0_setup again."
+      exit 0
+    fi
+    die "Docker installation did not complete. See https://docs.docker.com/get-docker/"
+  fi
+
+  say ""
+  say "  Nothing installed."
+  say ""
+  say "  Install either one, then run ./0_setup again:"
+  say "      Docker   https://docs.docker.com/get-docker/"
+  say "      Node.js  https://nodejs.org  (version 18 or newer)"
+  exit 1
+}
+
+# ---------------------------------------------------------------------------
+# 3. Build
+# ---------------------------------------------------------------------------
+
+record_run_mode() {
+  # Rewrite the RUN_MODE line in place so ./1_run knows what setup decided.
+  if grep -q '^RUN_MODE=' "$ROOT_DIR/.env"; then
+    sed -i.bak "s|^RUN_MODE=.*|RUN_MODE=$RUNTIME|" "$ROOT_DIR/.env"
+    rm -f "$ROOT_DIR/.env.bak"
+  else
+    printf 'RUN_MODE=%s\n' "$RUNTIME" >> "$ROOT_DIR/.env"
+  fi
+}
+
+build_app() {
+  step "Building the application"
+
+  if [ "$RUNTIME" = "docker" ]; then
+    say "  Building the container image. The first build takes a few minutes."
+    say ""
+    "$ROOT_DIR/scripts/run-docker" build
+  else
+    ensure_deps
+    build_web
+  fi
+}
+
+# ---------------------------------------------------------------------------
+
+main() {
+  say ""
+  say "  Media Player setup"
+  say "  =================="
+
+  configure_env
+  choose_runtime
+  record_run_mode
+  build_app
+
+  # Read back the port we just wrote, for the closing message.
+  local port
+  port="$(grep '^PORT=' "$ROOT_DIR/.env" | cut -d= -f2)"
+
+  step "Done"
+  say "  Start it with:"
+  say ""
+  say "      ./1_run"
+  say ""
+  say "  It will serve on port ${port:-5000}, and print the address to open"
+  say "  on your TV or phone."
+  say ""
+}
+
+main "$@"

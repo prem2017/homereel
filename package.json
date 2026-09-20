@@ -1,0 +1,22 @@
+{
+  "name": "media-player",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Stream the video and audio files on your computer to any device on your home network.",
+  "license": "MIT",
+  "workspaces": [
+    "web",
+    "server"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "dev": "./scripts/run-dev",
+    "start": "./scripts/run",
+    "build": "npm run build --workspace web",
+    "typecheck": "npm run typecheck --workspace web",
+    "test": "npm run test --workspaces --if-present",
+    "serve": "node server/index.js"
+  }
+}

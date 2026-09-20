@@ -1,0 +1,24 @@
+# Docker only reads .dockerignore from the build context root, which is why
+# this sits here rather than in docker/.
+
+.git
+.gitignore
+
+node_modules
+**/node_modules
+
+web/dist
+dist
+
+.env
+*.local
+
+npm-debug.log*
+*.log
+
+.vscode
+.idea
+.DS_Store
+
+README.md
+CLAUDE.md

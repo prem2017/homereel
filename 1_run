@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+#
+# Start the media player.
+#
+#   ./1_run                 start it, the way ./0_setup configured
+#   ./1_run --node          force running directly with Node.js
+#   ./1_run --docker        force running in Docker
+#   ./1_run --port 5050     use a different port, just for this run
+#   ./1_run logs            follow the logs (Docker only)
+#
+# Stopping is ./x_stop, and setting up is ./0_setup.
+#
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=scripts/lib.sh
+. "$ROOT_DIR/scripts/lib.sh"
+
+if [ ! -f "$ROOT_DIR/.env" ]; then
+  die "This is not set up yet. Run:
+
+      ./0_setup"
+fi
+
+MODE=""
+COMMAND="up"
+
+# A while loop rather than `for arg`, because --port has to consume the value
+# that follows it.
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --node) MODE=node ;;
+    --docker) MODE=docker ;;
+    --port)
+      if [ $# -lt 2 ]; then die "--port needs a number, for example: ./1_run --port 5050"; fi
+      PORT="$2"
+      shift
+      ;;
+    --port=*) PORT="${1#*=}" ;;
+    logs) COMMAND=logs ;;
+    stop | down) die "Use ./x_stop to stop the media player." ;;
+    -h | --help)
+      sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'
+      exit 0
+      ;;
+    *) die "Unknown option '$1'. Try ./1_run --help" ;;
+  esac
+  shift
+done
+
+# Validate before anything acts on it: this came straight off the command line.
+if [ -n "${PORT:-}" ]; then
+  case "$PORT" in
+    '' | *[!0-9]*) die "--port must be a number, but got '$PORT'." ;;
+  esac
+  if [ "$PORT" -lt 1 ] || [ "$PORT" -gt 65535 ]; then
+    die "--port must be between 1 and 65535, but got $PORT."
+  fi
+  # Exported before load_env, which preserves values already set in the shell.
+  export PORT
+fi
+
+load_env
+
+# Flag wins, then whatever ./0_setup recorded, then a guess.
+if [ -z "$MODE" ]; then
+  MODE="${RUN_MODE:-}"
+fi
+if [ -z "$MODE" ]; then
+  if docker info >/dev/null 2>&1; then MODE=docker; else MODE=node; fi
+fi
+
+case "$MODE" in
+  docker)
+    exec "$ROOT_DIR/scripts/run-docker" "$COMMAND"
+    ;;
+  node)
+    if [ "$COMMAND" != "up" ]; then
+      die "'$COMMAND' only applies to Docker. In Node mode the app logs straight
+  to the terminal it is running in."
+    fi
+    exec "$ROOT_DIR/scripts/run"
+    ;;
+  *)
+    die "RUN_MODE in .env is '$MODE', which is not valid. Use 'docker' or 'node',
+  or re-run ./0_setup."
+    ;;
+esac

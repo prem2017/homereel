@@ -1,0 +1,16 @@
+{
+  "name": "media-player-server",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "node --test \"*.test.js\" \"subtitles/**/*.test.js\""
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "mime-types": "^2.1.35",
+    "parse-torrent-title": "^3.0.1",
+    "yauzl": "^3.4.0"
+  }
+}

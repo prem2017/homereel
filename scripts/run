@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+#
+# Run the media player normally, straight from this folder.
+# Builds the frontend if needed, then serves everything on one port.
+#
+#   ./scripts/run
+#
+set -euo pipefail
+
+# shellcheck source=scripts/lib.sh
+. "$(cd "$(dirname "$0")" && pwd)/lib.sh"
+
+require_node
+load_env
+
+# Check before installing or building, so a port clash fails in a second
+# rather than after a few minutes of npm.
+require_free_port "$PORT"
+
+ensure_deps
+
+if needs_build; then
+  build_web
+fi
+
+# The server prints the localhost and LAN URLs once it is listening.
+# production: Express then answers an unexpected error with a bare status instead
+# of a stack trace naming paths on this machine. Set on this line alone, because
+# npm reads NODE_ENV too and would skip the build tools above.
+NODE_ENV="${NODE_ENV:-production}" exec node "$ROOT_DIR/server/index.js"

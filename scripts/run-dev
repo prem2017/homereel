@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+#
+# Development mode: instant reload for both halves of the app.
+#
+#   ./scripts/run-dev
+#
+# Runs two processes together:
+#   - the Express API on $PORT, restarting when server code changes
+#   - the Vite dev server on $WEB_DEV_PORT, hot-reloading the UI
+#
+# Open the Vite URL, not the API one. Vite forwards /api to Express.
+#
+set -euo pipefail
+
+# shellcheck source=scripts/lib.sh
+. "$(cd "$(dirname "$0")" && pwd)/lib.sh"
+
+require_node
+load_env
+ensure_deps
+
+export WEB_DEV_PORT="${WEB_DEV_PORT:-5173}"
+
+# npm spawns vite as a grandchild, so killing npm alone leaves vite holding the
+# port. Walk the tree depth-first instead. pgrep -P works on Linux and macOS.
+kill_tree() {
+  local pid="$1" child
+  [ -n "$pid" ] || return 0
+  for child in $(pgrep -P "$pid" 2>/dev/null); do
+    kill_tree "$child"
+  done
+  kill "$pid" 2>/dev/null || true
+}
+
+BACKEND_PID=""
+WEB_PID=""
+cleanup() {
+  trap - INT TERM EXIT
+  printf '\n  Shutting down...\n'
+  kill_tree "$WEB_PID"
+  kill_tree "$BACKEND_PID"
+  wait 2>/dev/null || true
+}
+trap cleanup INT TERM EXIT
+
+printf '  Starting API on port %s (watching for changes)...\n' "$PORT"
+node --watch "$ROOT_DIR/server/index.js" &
+BACKEND_PID=$!
+
+printf '  Starting the UI dev server...\n'
+printf '  Open the "Network" URL below on your TV or phone.\n\n'
+
+cd "$ROOT_DIR"
+npm run dev --workspace web &
+WEB_PID=$!
+
+# Both children run in the background so this `wait` stays interruptible: bash
+# defers trap handlers until a *foreground* command finishes, which would leave
+# the API orphaned on Ctrl+C. Waiting here lets cleanup run immediately, and
+# also tears everything down if either process exits on its own.
+wait "$WEB_PID"

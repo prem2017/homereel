@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+#
+# Run the media player in Docker. Nothing but Docker needs to be installed -
+# no Node.js required on the host.
+#
+#   ./scripts/run-docker           start (rebuilds if the code changed)
+#   ./scripts/run-docker build     build the image only
+#   ./scripts/run-docker logs      follow the logs
+#
+# Stopping lives in ./x_stop, which handles the Node runtime too.
+#
+set -euo pipefail
+
+# shellcheck source=scripts/lib.sh
+. "$(cd "$(dirname "$0")" && pwd)/lib.sh"
+
+command -v docker >/dev/null 2>&1 ||
+  die "Docker is not installed. See https://docs.docker.com/get-docker/"
+
+docker compose version >/dev/null 2>&1 ||
+  die "This needs Docker Compose v2 ('docker compose'). Update Docker Desktop or install the compose plugin."
+
+# Docker never uses ensure_deps/require_node - it builds Node inside the image.
+load_env
+
+# --project-directory makes the repo root the build context and lets Compose
+# read the root .env, even though the compose file lives in docker/.
+COMPOSE=(docker compose --project-directory "$ROOT_DIR" -f "$ROOT_DIR/docker/compose.yml")
+
+# compose.yml pins container_name, so Compose must have that exact name or it
+# fails. A container created by a bare `docker run` - which is how the
+# pre-restructure scripts started this app - is invisible to Compose, so Compose
+# neither reuses nor replaces it; it just collides with the name and reports a
+# raw daemon error. Offer to clear it instead.
+clear_orphan_container() {
+  local id managed
+
+  # --no-trunc because `compose ps -q` below prints full IDs. The name filter is
+  # a regex, so anchor it: unanchored, "media-player" also matches "media-player-2".
+  id="$(docker ps -aq --no-trunc --filter "name=^/${CONTAINER_NAME}\$")"
+  if [ -z "$id" ]; then return 0; fi
+
+  # Ask Compose what it owns rather than inferring it from labels. Compose
+  # stamps com.docker.compose.* onto the image it builds as well, and containers
+  # inherit image labels - so a manual `docker run` off this image carries the
+  # project label and would be misread as Compose-managed.
+  managed="$("${COMPOSE[@]}" ps -aq 2>/dev/null || true)"
+  # Compose-managed: it recreates this itself, so leave it alone.
+  if printf '%s\n' "$managed" | grep -qxF "$id"; then return 0; fi
+
+  printf '\n  A leftover container is holding the name "%s":\n\n' "$CONTAINER_NAME"
+  printf '      %s\n\n' \
+    "$(docker ps -a --filter "name=^/${CONTAINER_NAME}\$" --format '{{.ID}}   {{.Status}}')"
+  printf '  It was not created by this project, so Compose cannot reuse or\n'
+  printf '  replace it. It holds no data - your media stays in your own folder.\n\n'
+
+  if ! confirm "  Remove it and continue?"; then
+    die "Left it alone. To remove it yourself and start again:
+
+      docker rm -f $CONTAINER_NAME && ./1_run"
+  fi
+
+  docker rm -f "$id" >/dev/null
+  printf '  Removed.\n'
+}
+
+case "${1:-up}" in
+  build)
+    # Used by ./0_setup, so the first ./1_run starts instantly.
+    exec "${COMPOSE[@]}" build
+    ;;
+  logs)
+    exec "${COMPOSE[@]}" logs -f
+    ;;
+  up)
+    clear_orphan_container
+    "${COMPOSE[@]}" up --build -d
+
+    LAN_IP="$(detect_lan_ip || true)"
+    printf '\n  Media Player is running in Docker\n\n'
+    printf '  Serving media from : %s\n' "$MEDIA_DIR"
+    printf '  On this computer   : http://localhost:%s\n' "$PORT"
+    if [ -n "$LAN_IP" ]; then
+      printf '  On your TV / phone : http://%s:%s\n' "$LAN_IP" "$PORT"
+    fi
+    printf '\n  Logs:  ./1_run logs\n'
+    printf '  Stop:  ./x_stop\n\n'
+    ;;
+  *)
+    die "Unknown command '${1}'. Use: up, build, or logs."
+    ;;
+esac

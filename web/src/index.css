@@ -1,0 +1,63 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Tailwind's Preflight resets button backgrounds with the selector list
+   `button, input:where([type=button]), ...`. A selector list is all-or-nothing:
+   `:where()` is Chrome 88, so Chromium 47 (Tizen 3.0 - 2017 Samsung sets) throws
+   away the WHOLE rule and buttons keep the UA's default `buttonface` background.
+
+   Every file row is a real <button> (see the remote-navigation note in
+   CLAUDE.md), so the explorer rendered as a block of light native buttons with
+   our light-grey text on top - unreadable until hover or focus painted a
+   background underneath it. Restate the reset without `:where()`, and turn native
+   theming off so the platform cannot repaint its own chrome over our colours.
+
+   Must stay inside `@layer base`, or it would outrank the `bg-*` utilities that
+   colour the selected and hovered rows. */
+@layer base {
+  button,
+  [type='button'],
+  [type='reset'],
+  [type='submit'] {
+    -webkit-appearance: none;
+    appearance: none;
+    background-color: transparent;
+    background-image: none;
+  }
+}
+
+/* Custom scrollbar for webkit */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #1e1e1e;
+}
+::-webkit-scrollbar-thumb {
+  background: #4b5563;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+
+/* The player draws its own controls, so hide the browser's native ones. */
+video::-webkit-media-controls {
+  display: none !important;
+}
+
+/* Chromium 47 (Tizen 3.0 - 2017 Samsung sets) has no CSS custom properties, and
+   Tailwind builds every gradient out of them. A gradient that fails to render is
+   normally harmless, but transparent text clipped to a missing background is
+   invisible. So take the colour away only where variables actually work.
+   `(--probe: 0)` is the standard feature test for custom-property support. */
+.gradient-text {
+  color: #60a5fa;
+}
+@supports (--probe: 0) {
+  .gradient-text {
+    color: transparent;
+  }
+}

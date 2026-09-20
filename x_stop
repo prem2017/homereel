@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+#
+# Stop the media player, however it was started.
+#
+#   ./x_stop
+#
+# Covers both runtimes: the Docker container and a server started with Node.
+# Safe to run when nothing is running.
+#
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=scripts/lib.sh
+. "$ROOT_DIR/scripts/lib.sh"
+
+SERVER_JS="$ROOT_DIR/server/index.js"
+stopped=0
+
+# --- Docker -----------------------------------------------------------------
+# Stopping by name needs neither Compose nor a readable .env, so this still
+# works when MEDIA_DIR has been moved or deleted and Compose can no longer
+# parse compose.yml.
+if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+  if [ -n "$(docker ps -q --filter "name=^/${CONTAINER_NAME}\$")" ]; then
+    printf '  Stopping the Docker container...\n'
+    docker stop "$CONTAINER_NAME" >/dev/null
+    printf '  Stopped the container "%s".\n' "$CONTAINER_NAME"
+    stopped=1
+  fi
+fi
+
+# --- Node -------------------------------------------------------------------
+# Match this checkout's server path, never whatever happens to hold the port -
+# that could be somebody else's program. Also catches `node --watch` from
+# scripts/run-dev, whose command line contains the same path.
+server_pids() { pgrep -f "$SERVER_JS" 2>/dev/null || true; }
+
+pids="$(server_pids)"
+
+# `node --watch` restarts the server as a child whose command line looks like an
+# ordinary run, so test the whole group rather than each process: if any of them
+# is a watcher, this is scripts/run-dev. Killing only the API there would leave
+# Vite serving a UI with no backend, so hand it back to run-dev's own cleanup,
+# which stops both.
+dev_found=0
+for pid in $pids; do
+  if ps -p "$pid" -o args= 2>/dev/null | grep -q -- '--watch'; then
+    dev_found=1
+  fi
+done
+
+if [ "$dev_found" -eq 1 ]; then
+  printf '  The development server is running (./scripts/run-dev).\n'
+  printf '  Press Ctrl+C in that terminal instead - it stops the API and the\n'
+  printf '  web interface together.\n'
+  pids=""
+fi
+
+if [ -n "$pids" ]; then
+  printf '  Stopping the Node server...\n'
+  for pid in $pids; do
+    kill "$pid" 2>/dev/null || true
+  done
+
+  # Give it a moment to shut down cleanly before insisting.
+  for _ in $(seq 1 20); do
+    pids="$(server_pids)"
+    if [ -z "$pids" ]; then break; fi
+    sleep 0.25
+  done
+
+  if [ -n "$pids" ]; then
+    for pid in $pids; do
+      kill -9 "$pid" 2>/dev/null || true
+    done
+  fi
+
+  printf '  Stopped the Node server.\n'
+  stopped=1
+fi
+
+# ---------------------------------------------------------------------------
+
+if [ "$stopped" -eq 0 ]; then
+  if [ "$dev_found" -eq 1 ]; then
+    printf '\n'
+    exit 0
+  fi
+  printf '\n  The media player is not running.\n\n'
+  exit 0
+fi
+
+printf '\n  Start it again with:  ./1_run\n\n'

@@ -1,0 +1,37 @@
+{
+  "name": "media-player-web",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "lucide-react": "^0.263.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "//browserslist": "Matches the plugin-legacy target in vite.config.ts. plugin-legacy only transpiles JS; this is what points autoprefixer and Vite's cssTarget at the same old TV browsers (Tizen 3.0 on 2017 Samsung sets is Chromium 47).",
+  "browserslist": [
+    "chrome >= 47",
+    "defaults"
+  ],
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/react": "^18.2.15",
+    "@types/react-dom": "^18.2.7",
+    "@vitejs/plugin-legacy": "^4.1.1",
+    "@vitejs/plugin-react": "^4.0.3",
+    "autoprefixer": "^10.4.14",
+    "postcss": "^8.4.27",
+    "tailwindcss": "^3.3.3",
+    "terser": "^5.44.1",
+    "typescript": "^5.0.2",
+    "vite": "^4.4.5",
+    "vitest": "^4.1.10"
+  }
+}
