@@ -286,7 +286,7 @@ build_app() {
 
 main() {
   say ""
-  say "  Media Player setup"
+  say "  HomeReel setup"
   say "  =================="
 
   configure_env

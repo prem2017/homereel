@@ -1,4 +1,4 @@
-# Media Player
+# HomeReel
 
 Stream the videos and music already sitting on your computer to any device on
 your home network — your TV, a phone, a tablet — through a web browser. No
@@ -39,8 +39,8 @@ Worth knowing before you install it:
 ## Quick start
 
 ```bash
-git clone <your-repo-url>
-cd media-player
+git clone https://github.com/prem2017/homereel.git
+cd homereel
 
 ./0_setup      # asks where your media is, then gets everything ready
 ./1_run        # starts it
@@ -89,7 +89,7 @@ survives closing the terminal. Either way `./x_stop` stops it.
 When you start it, you will see:
 
 ```
-  Media Player is running
+  HomeReel is running
 
   Serving media from : /home/you/Videos
   On this computer   : http://localhost:5000
@@ -429,7 +429,7 @@ Re-run `./0_setup` any time to change your answers.
 ## Project structure
 
 ```
-media-player/
+homereel/
 ├── 0_setup               one-time setup
 ├── 1_run                 start the app
 ├── x_stop                stop it, either runtime
@@ -500,10 +500,10 @@ Your user is not in the `docker` group yet. `sudo usermod -aG docker $USER`,
 then log out and back in — opening a new terminal is not enough, because group
 membership is only picked up at login.
 
-**`container name "/media-player" is already in use`.**
+**`container name "/homereel" is already in use`.**
 A container left behind by an older version is holding the name. `./1_run` spots
 this and offers to remove it for you — answer `y`. It carries no data, so
-nothing is lost. To do it by hand: `docker rm -f media-player`, then `./1_run`.
+nothing is lost. To do it by hand: `docker rm -f homereel`, then `./1_run`.
 
 **Nothing appears in the sidebar.**
 Only video and audio files are listed; everything else, including subtitle

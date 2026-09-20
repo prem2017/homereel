@@ -418,7 +418,7 @@ need an account to watch their own files.
 - `MAX_DEPTH` stops the scanner looping on symlinks.
 - Scripts: no statement-level `A || B && C` under `set -e` (aborts when both fail);
   use `if`.
-- `compose.yml` pins `container_name: media-player`; `clear_orphan_container` in
+- `compose.yml` pins `container_name: homereel`; `clear_orphan_container` in
   `scripts/run-docker` offers to remove a leftover manual container. **Ask Compose
   what it owns (`compose ps -aq`)**, never the `com.docker.compose.*` labels —
   containers inherit them from the image. `compose ps -q` prints full IDs, hence

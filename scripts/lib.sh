@@ -5,7 +5,7 @@
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # Must match container_name in docker/compose.yml.
-CONTAINER_NAME=media-player
+CONTAINER_NAME=homereel
 
 die() {
   printf '\n  Error: %s\n\n' "$1" >&2
@@ -151,7 +151,7 @@ require_free_port() {
   free="$(next_free_port "$port")"
 
   if [ "$kind" = "docker" ] && [ "$who" = "$CONTAINER_NAME" ]; then
-    die "media-player is already running in Docker on port $port.
+    die "homereel is already running in Docker on port $port.
 
   Stop it, then start it with Node:
 

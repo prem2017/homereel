@@ -36,7 +36,7 @@ clear_orphan_container() {
   local id managed
 
   # --no-trunc because `compose ps -q` below prints full IDs. The name filter is
-  # a regex, so anchor it: unanchored, "media-player" also matches "media-player-2".
+  # a regex, so anchor it: unanchored, "homereel" also matches "homereel-2".
   id="$(docker ps -aq --no-trunc --filter "name=^/${CONTAINER_NAME}\$")"
   if [ -z "$id" ]; then return 0; fi
 
@@ -77,7 +77,7 @@ case "${1:-up}" in
     "${COMPOSE[@]}" up --build -d
 
     LAN_IP="$(detect_lan_ip || true)"
-    printf '\n  Media Player is running in Docker\n\n'
+    printf '\n  HomeReel is running in Docker\n\n'
     printf '  Serving media from : %s\n' "$MEDIA_DIR"
     printf '  On this computer   : http://localhost:%s\n' "$PORT"
     if [ -n "$LAN_IP" ]; then

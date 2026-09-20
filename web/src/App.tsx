@@ -114,7 +114,7 @@ function App() {
   // What is playing, in the tab title. Two of these open on a laptop were
   // otherwise indistinguishable.
   useEffect(() => {
-    document.title = currentFile ? `${currentFile.name} · Media Player` : 'Media Player';
+    document.title = currentFile ? `${currentFile.name} · HomeReel` : 'HomeReel';
   }, [currentFile]);
 
   // useCallback is load-bearing, not decoration: this is passed to every row in the

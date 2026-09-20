@@ -433,7 +433,7 @@ const lanAddresses = () => Object.entries(os.networkInterfaces())
     .map((i) => i.address);
 
 const start = () => app.listen(PORT, '0.0.0.0', () => {
-    console.log(`\n  Media Player is running\n`);
+    console.log(`\n  HomeReel is running\n`);
     console.log(`  Serving media from : ${MEDIA_ROOT}`);
     console.log(`  Frontend build     : ${WEB_DIST}`);
     console.log(`  On this computer   : http://localhost:${PORT}`);

@@ -1,14 +1,14 @@
 # Start this with ./scripts/run-docker, which loads .env and points Compose at
 # the repository root.
-name: media-player
+name: homereel
 
 services:
-  media-player:
+  homereel:
     build:
       context: .
       dockerfile: docker/Dockerfile
-    image: media-player
-    container_name: media-player
+    image: homereel
+    container_name: homereel
     restart: unless-stopped
 
     # Same port inside and out, so there is only ever one number to remember.
