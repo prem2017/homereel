@@ -449,7 +449,8 @@ npm test            # both test suites (needs Node 20.19+ or 22.12+)
 npm run serve       # run the server alone, against an existing build
 ```
 
-GitHub Actions runs the tests, the type check and the build on every push
+GitHub Actions runs the tests, the type check and the build on every push, and
+plays files in a headless browser through the main scenarios
 (`.github/workflows/ci.yml`).
 
 ## Configuration

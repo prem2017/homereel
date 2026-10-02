@@ -62,7 +62,8 @@ exact commands. Strangers clone this repo; keep it that way.
 
 CI (`.github/workflows/ci.yml`) runs `npm ci`, `npm test`, `npm run typecheck` and
 `npm run build` on Node 22 for every push. `npm ci` is also the lockfile check the
-Dockerfile depends on.
+Dockerfile depends on. A second job, `player`, drives the real app in headless
+Chromium through the run-media-player skill's scenarios.
 
 ## Commits
 

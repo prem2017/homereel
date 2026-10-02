@@ -174,6 +174,7 @@ Both suites pass (95 server tests, 94 web tests on 2026-09-14) and typecheck pri
   lists positions >30s in with >30s left: use `Long/Documentary.mp4`.
 - **A search hit is a `button[data-result]`** carrying `data-path` and `data-kind`
   (`audio`/`video`); the row itself shows a tidied name under its folder.
+- **CI runs these scenarios** on every push (the `player` job in `.github/workflows/ci.yml`), uploading the screenshots and server log of a failed run.
 - **Nothing leaves the machine**: the server gets a clean env (no provider keys) and
   `SUBSCENE_URL=http://127.0.0.1:9`, which it refuses to fetch. Download flows go
   through `fake-subtitles`.

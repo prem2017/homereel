@@ -20,3 +20,64 @@ jobs:
       - run: npm test
       - run: npm run typecheck
       - run: npm run build
+
+  player:
+    # The run-media-player skill's driver: fixture media, a frontend build, the
+    # real server and Playwright's headless Chromium, through the scenarios the
+    # skill documents. Fails if any step or expect does.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      - run: npm ci
+      - name: Drive the player in headless Chromium
+        run: |
+          node .claude/skills/run-media-player/driver.mjs <<'EOF'
+          fake-subtitles
+          open
+          play Show/Episode 1.mp4
+          expect __mp.state().bottomCue === 'Hello from the English file'
+          select Top Source = Show/Episode 1.srt
+          expect __mp.state().topCue === 'Café crème, déjà vu'
+          button Fullscreen
+          expect __mp.state().fullscreen
+          key Escape
+          expect !__mp.state().fullscreen
+          search bureau legendes
+          pick Le Bureau des Légendes/Le.Bureau.des.Legendes.S01E01.1080p.mp4
+          select Get subtitles = en
+          button Download
+          expect __mp.state().bottomCue === 'Fake en subtitle for Le.Bureau.des.Legendes.S01E01.1080p.mp4'
+          play Dark/Night.mp4
+          dark video
+          play Show/Episode 2.mp4
+          select Get subtitles = en
+          hold-downloads
+          button Download
+          wait 1000
+          play Long/Documentary.mp4
+          release-downloads
+          wait 1500
+          expect __mp.state().bottomCue === null
+          play Show/Episode 2.mp4
+          expect __mp.state().bottomCue === 'Fake en subtitle for Episode 2.mp4'
+          viewport 390 844
+          open
+          search episode
+          pick Show/Episode 10.mp4
+          controls
+          expect document.querySelector('button[aria-label="Fullscreen"]').getBoundingClientRect().right <= 390
+          console
+          EOF
+      - name: Keep the screenshots and server log of a failed run
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: player-run
+          path: |
+            /tmp/run-media-player/shots
+            /tmp/run-media-player/server.log
