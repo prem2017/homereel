@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { Volume2, Type, SkipForward, SkipBack, Loader2 } from 'lucide-react';
+import { Volume2, Subtitles, SkipForward, SkipBack, Loader2 } from 'lucide-react';
 import { formatTime } from '../utils/time';
 import { safePlay } from '../utils/media';
 import { readPref, writePref, PREF } from '../utils/prefs';
@@ -13,6 +13,8 @@ import { ControlBar } from './player/ControlBar';
 import { SubtitlePanel } from './player/SubtitlePanel';
 import { ShortcutSheet } from './player/ShortcutSheet';
 import { ResumeNotice, UpNextNotice } from './player/Notices';
+import { InfoLine } from './player/InfoLine';
+import { languageOfSubtitle } from '../utils/subtitleLabel';
 import { ProblemOverlay } from './player/ProblemOverlay';
 import { useSubtitleSlots } from './player/useSubtitleSlots';
 import { useOnlineSubtitles } from './player/useOnlineSubtitles';
@@ -21,17 +23,16 @@ import { useFullscreen } from './player/useFullscreen';
 import { usePlayerKeys } from './player/usePlayerKeys';
 
 interface MediaPlayerProps {
-  filePath: string | null;
-  fileName: string | null;
-  mimeType: string | null;
+  /** What is open, or null for nothing (Home shows instead). */
+  file: FileNode | null;
   siblings?: FileNode[];
   onEnded?: () => void;
   autoPlay?: boolean;
   onNext?: () => void;
   onPrevious?: () => void;
   /** What `onEnded` will move to, so it can be announced - and stopped - before
-   *  it happens. Null when this is the last file in the folder. */
-  nextName?: string | null;
+   *  it happens. Null at the end of the line. */
+  next?: FileNode | null;
   /** Every subtitle a download wrote, this video's own included - one archive is
    *  often a whole season. Required, not a notification: `siblings` is where the
    *  menus read from, so this is how a download reaches them. */
@@ -57,15 +58,20 @@ const RESUME_SAVE_EVERY = 5;
 const UP_NEXT_SECONDS = 6;
 
 const MediaPlayerView: React.FC<MediaPlayerProps> = ({
-  filePath, fileName, mimeType, siblings = [], onEnded, autoPlay, onNext, onPrevious,
-  nextName, onSubtitlesSaved, onProgress, onReveal
+  file, siblings = [], onEnded, autoPlay, onNext, onPrevious,
+  next, onSubtitlesSaved, onProgress, onReveal
 }) => {
+  const filePath = file ? file.path : null;
+  const fileName = file ? file.name : null;
+  const mimeType = file?.mimeType || null;
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Written to directly during playback instead of via state - see handleTimeUpdate.
   const progressRef = useRef<HTMLInputElement>(null);
   const timeLabelRef = useRef<HTMLSpanElement>(null);
+  const totalLabelRef = useRef<HTMLButtonElement>(null);
+  const playedRef = useRef<HTMLDivElement>(null);
   const bufferedRef = useRef<HTMLDivElement>(null);
   const styleRef = useRef<HTMLStyleElement>(null);
   // Everything that sits in the strip along the foot of the picture, which is
@@ -86,6 +92,10 @@ const MediaPlayerView: React.FC<MediaPlayerProps> = ({
   const [volume, setVolume] = useState(() => readPref(PREF.volume, 1));
   const [isMuted, setIsMuted] = useState(() => readPref(PREF.muted, 0) === 1);
   const [playbackRate, setPlaybackRate] = useState(() => readPref(PREF.rate, 1));
+  // The total as time left. Mirrored in a ref for handleTimeUpdate, which writes
+  // the label itself every tick.
+  const [showRemaining, setShowRemaining] = useState(() => readPref(PREF.remaining, 0) === 1);
+  const showRemainingRef = useRef(showRemaining);
   const { isFullscreen, toggleFullscreen } = useFullscreen(containerRef, videoRef);
 
   // Playback status
@@ -114,6 +124,13 @@ const MediaPlayerView: React.FC<MediaPlayerProps> = ({
   }, [volume, isMuted]);
 
   useEffect(() => { writePref(PREF.rate, playbackRate); }, [playbackRate]);
+
+  useEffect(() => {
+    showRemainingRef.current = showRemaining;
+    writePref(PREF.remaining, showRemaining ? 1 : 0);
+    const video = videoRef.current;
+    if (video) writeClock(video.currentTime, video.duration);
+  }, [showRemaining]);
 
   useEffect(() => {
     writePref(PREF.topFont, topFontSize);
@@ -203,7 +220,7 @@ const MediaPlayerView: React.FC<MediaPlayerProps> = ({
       // a file that never loads would otherwise wear them.
       setDuration(0);
       if (progressRef.current) progressRef.current.value = '0';
-      if (timeLabelRef.current) timeLabelRef.current.textContent = formatTime(0);
+      writeClock(0, NaN);
       // Whatever was queued belongs to the file that just finished.
       setUpNextIn(null);
       restartCueScan();
@@ -357,6 +374,18 @@ const MediaPlayerView: React.FC<MediaPlayerProps> = ({
     bar.style.width = `${Math.min(100, (end / video.duration) * 100)}%`;
   };
 
+  // The clock, the played stretch of the bar, and the total when it reads as
+  // time left - everything about the position that the bar shows in text.
+  function writeClock(t: number, length: number) {
+    if (timeLabelRef.current) timeLabelRef.current.textContent = formatTime(t);
+    if (playedRef.current) {
+      playedRef.current.style.width = length > 0 && isFinite(length) ? `${Math.min(100, (t / length) * 100)}%` : '0%';
+    }
+    if (showRemainingRef.current && totalLabelRef.current) {
+      totalLabelRef.current.textContent = `−${formatTime(length - t)}`;
+    }
+  }
+
   const handleTimeUpdate = () => {
     const video = videoRef.current;
     if (!video) return;
@@ -367,7 +396,7 @@ const MediaPlayerView: React.FC<MediaPlayerProps> = ({
     // player each time - control bar, both subtitle menus and all their options.
     if (!isScrubbingRef.current) {
       if (progressRef.current) progressRef.current.value = String(t);
-      if (timeLabelRef.current) timeLabelRef.current.textContent = formatTime(t);
+      writeClock(t, video.duration);
       paintBuffered();
     }
 
@@ -432,7 +461,7 @@ const MediaPlayerView: React.FC<MediaPlayerProps> = ({
     //
     // Not between songs: an album is meant to run on, and six seconds of silence
     // with a notice over it between every track is a fault, not a courtesy.
-    if (nextName && onEnded && !mimeType?.startsWith('audio')) {
+    if (next && onEnded && !mimeType?.startsWith('audio')) {
       setUpNextIn(UP_NEXT_SECONDS);
       return;
     }
@@ -485,7 +514,7 @@ const MediaPlayerView: React.FC<MediaPlayerProps> = ({
 
   const handleScrubChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const t = parseFloat(e.target.value);
-    if (timeLabelRef.current) timeLabelRef.current.textContent = formatTime(t);
+    writeClock(t, videoRef.current ? videoRef.current.duration : NaN);
     // Keyboard users get no mousedown, so there is no drag to wait for.
     if (!isScrubbingRef.current) seekTo(t);
   };
@@ -572,10 +601,16 @@ const MediaPlayerView: React.FC<MediaPlayerProps> = ({
     },
   };
 
+  // Which languages are on, for the subtitle button: bottom first, as the slot
+  // a single subtitle lands in. "On" for a file whose name says no language.
+  const summaryOf = (sub: FileNode | null) => (sub ? (languageOfSubtitle(sub.name) || 'on').toUpperCase() : null);
+  const subtitleSummary = [summaryOf(slots.bottomSubtitle), summaryOf(slots.topSubtitle)].filter(Boolean).join(' · ');
+
   return (
+    <div className="flex flex-col h-full min-h-0">
     <div
       ref={containerRef}
-      className={`relative bg-black group w-full h-full flex flex-col justify-center overflow-hidden rounded-lg shadow-2xl ${isFullscreen ? 'h-screen w-screen rounded-none' : ''}`}
+      className={`relative bg-black group w-full flex-1 min-h-0 flex flex-col justify-center overflow-hidden rounded-lg shadow-2xl ${isFullscreen ? 'h-screen w-screen rounded-none' : ''}`}
       onMouseLeave={() => isPlaying && setShowControls(false)}
     >
       {/* Rule text is written from an effect, so this element is never re-rendered. */}
@@ -669,9 +704,9 @@ const MediaPlayerView: React.FC<MediaPlayerProps> = ({
         />
       )}
 
-      {upNextIn !== null && (
+      {upNextIn !== null && next && (
         <UpNextNotice
-          noticeRef={upNextRef} seconds={upNextIn} nextName={nextName}
+          noticeRef={upNextRef} seconds={upNextIn} total={UP_NEXT_SECONDS} next={next} current={file}
           onPlayNow={playNextNow} onStay={() => setUpNextIn(null)}
         />
       )}
@@ -688,43 +723,46 @@ const MediaPlayerView: React.FC<MediaPlayerProps> = ({
         </div>
       )}
 
-      {/* Top Right Subtitle Menu.
-          pointer-events-none while hidden, or an invisible button keeps taking
-          clicks meant for the film - and keeps its place in the tab order, where
-          a remote lands on a control nobody can see. */}
-      <div className={`absolute top-4 right-4 z-50 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-        <div className="relative" ref={subPanelRef}>
-          <button
-            onClick={(e) => { e.stopPropagation(); setShowSubSettings(!showSubSettings); }}
-            aria-label="Subtitles"
-            aria-expanded={showSubSettings}
-            title="Subtitles"
-            className={`p-2 rounded-full bg-black/60 text-white backdrop-blur-sm hover:bg-black/80 hover:text-blue-400 focus:outline-none focus:bg-blue-700 transition ${showSubSettings ? 'text-blue-400 ring-2 ring-blue-500' : ''}`}
-          >
-            <Type size={20} />
-          </button>
-
-          {showSubSettings && (
-            <SubtitlePanel
-              bodyRef={subPanelBodyRef} slots={slots} online={online}
-              topFontSize={topFontSize} onTopFontSize={setTopFontSize}
-              bottomFontSize={bottomFontSize} onBottomFontSize={setBottomFontSize}
-            />
-          )}
-        </div>
-      </div>
-
       <ControlBar
-        barRef={controlBarRef} progressRef={progressRef} timeLabelRef={timeLabelRef} bufferedRef={bufferedRef}
+        barRef={controlBarRef} progressRef={progressRef} timeLabelRef={timeLabelRef} totalLabelRef={totalLabelRef}
+        playedRef={playedRef} bufferedRef={bufferedRef}
         visible={showControls} duration={duration} isPlaying={isPlaying} isMuted={isMuted} volume={volume}
-        playbackRate={playbackRate} isFullscreen={isFullscreen} fileName={fileName}
+        playbackRate={playbackRate} isFullscreen={isFullscreen}
+        showRemaining={showRemaining} onToggleRemaining={() => setShowRemaining(on => !on)}
+        subtitles={isAudio ? undefined : (
+          // In the bar with every other control, saying which languages are on.
+          // Its panel opens above it. Bounded by this wrapper for click-away.
+          <div className="relative ml-3" ref={subPanelRef}>
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowSubSettings(!showSubSettings); }}
+              aria-label="Subtitles"
+              aria-expanded={showSubSettings}
+              title="Subtitles"
+              className={`flex items-center rounded px-1 hover:text-blue-400 focus:outline-none focus:bg-blue-700 transition ${showSubSettings ? 'text-blue-400' : 'text-white'}`}
+            >
+              <Subtitles size={22} />
+              {subtitleSummary && <span className="ml-1.5 text-xs font-semibold">{subtitleSummary}</span>}
+            </button>
+
+            {showSubSettings && (
+              <SubtitlePanel
+                bodyRef={subPanelBodyRef} slots={slots} online={online}
+                topFontSize={topFontSize} onTopFontSize={setTopFontSize}
+                bottomFontSize={bottomFontSize} onBottomFontSize={setBottomFontSize}
+              />
+            )}
+          </div>
+        )}
         onPrevious={onPrevious} onNext={onNext} onSkip={skip} onTogglePlay={togglePlay} onToggleMute={toggleMute}
         onVolumeChange={handleVolumeChange} onCycleRate={cyclePlaybackRate} onShowHelp={() => setShowHelp(true)}
-        onToggleFullscreen={toggleFullscreen}
+        onToggleFullscreen={isAudio ? undefined : toggleFullscreen}
         onScrubStart={handleScrubStart} onScrubChange={handleScrubChange} onScrubCommit={handleScrubCommit}
       />
 
       {showHelp && <ShortcutSheet onClose={() => setShowHelp(false)} />}
+    </div>
+
+    {file && <InfoLine file={file} top={slots.topSubtitle} bottom={slots.bottomSubtitle} onReveal={onReveal} />}
     </div>
   );
 };

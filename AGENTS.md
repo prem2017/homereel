@@ -273,7 +273,7 @@ and a full quota must never break playback.
 | `media-player:subtitle-bottom` | video path → subtitle path | the Bottom Source menu, and a download that filled an empty slot |
 | `media-player:watched` | file path → ms when finished | the player, on `ended` and on a save in the last 30s (video only); Start over clears it |
 | `media-player:open-folders` | folder path → 1 | `FileTree`, as a set |
-| `media-player:prefs` | fixed keys → number | volume, mute, speed, both font sizes, sidebar width and open state |
+| `media-player:prefs` | fixed keys → number | volume, mute, speed, both font sizes, sidebar width and open state, time left vs length |
 
 - **Insertion order is recency** (`write` deletes, then sets): Home's Continue
   watching is that order reversed, and trimming is LRU.
@@ -392,10 +392,12 @@ need an account to watch their own files.
 
 ## Gotchas
 
-- **Autoplay-next goes through a toast.** `handleEnded` sets `upNextIn` only when
-  there is a `nextName`; an effect counts it down, then `onEnded` fires. Without a
-  `nextName` it jumps at once (right for the last file), and so does audio: an
-  album runs on, it does not pause six seconds between tracks.
+- **Autoplay-next goes through a card.** `handleEnded` sets `upNextIn` only when
+  there is a `next` file; an effect counts it down, then `onEnded` fires. Without a
+  `next` it jumps at once (right for the last file), and so does audio: an album
+  runs on, it does not pause six seconds between tracks. The card (`UpNextNotice`)
+  names the episode, show and season ("Next season" when it crosses one); its Play
+  now fill drains by width, never a transform.
 - **A failed file says what to do** (`describePlaybackError` in
   `utils/playbackError.ts`): the advice follows the container, so an MP4 is never
   told to become an MP4. The overlay offers Show in library (`onReveal`), Try again
@@ -466,8 +468,17 @@ need an account to watch their own files.
   made it worse. It is repeated in px on `-webkit-media-text-track-display` to pin
   the strut. `padding`/`border-radius` are ignored on `::cue`; no Tailwind transforms
   there (`var()`).
-- **Playback time goes to the DOM, not state** (`handleTimeUpdate` writes
-  `progressRef`/`timeLabelRef`). A `useState` there re-renders the player 4×/s.
+- **Playback time goes to the DOM, not state** (`handleTimeUpdate` → `writeClock`
+  writes the clock, the played width `playedRef`, and the total as time left when
+  that is on). A `useState` there re-renders the player 4×/s. The hover time over
+  the seek bar is written to its label the same way.
+- **The control bar holds every control**: the subtitle button (still
+  `aria-label="Subtitles"`, now with the languages on: "EN · FR") opens its panel
+  above the bar, speed is a chip lit when not 1×, the total toggles to time left
+  (pref `time-left`). Audio gets neither the subtitle nor the fullscreen button.
+  The player takes `file` and `next` as `FileNode`s; the line under it
+  (`InfoLine`) gives the folder (press: show in library), the tidied title, facts
+  from the name and size, and which subtitles are showing where.
 - **`MediaPlayer` is `React.memo`; every prop must keep its identity** —
   `onNext`, `onPrevious`, `onProgress`, `onEnded`, `onSubtitlesSaved`, `onReveal` are
   `useCallback`s in `App.tsx`, `siblings` is the memoized `siblingsWithSaved`.

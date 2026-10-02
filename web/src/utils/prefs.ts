@@ -24,6 +24,8 @@ export const PREF = {
   bottomFont: 'bottom-font',
   sidebarWidth: 'sidebar-width',
   sidebarOpen: 'sidebar-open',
+  // The control bar's total reads as time left (1) or as the length (0).
+  remaining: 'time-left',
 };
 
 /** The saved value, or `fallback` when there is none or it is unusable. */

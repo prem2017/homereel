@@ -397,8 +397,8 @@ function App() {
 
         {/* 3. Main Media Content */}
         {/* min-h-0 rather than overflow-auto: the player is h-full, so with the
-            file details below it the column used to overflow its own height and
-            grow a scrollbar, parking the details below the fold. */}
+            info line below it the column used to overflow its own height and
+            grow a scrollbar, parking the line below the fold. */}
         <div className="flex-1 flex flex-col p-3 md:p-4 overflow-hidden min-w-0 min-h-0">
           <div className="flex-1 min-h-0">
             {/* While nothing plays: where you were, what is next, what arrived.
@@ -416,32 +416,20 @@ function App() {
                 working, and picking another file tries again. */}
             <ErrorBoundary what="player" resetKey={currentFile?.path || null}>
               <MediaPlayer
-                filePath={currentFile?.path || null}
-                fileName={currentFile?.name || null}
-                mimeType={currentFile?.mimeType || null}
+                file={currentFile}
                 siblings={siblingsWithSaved}
                 onSubtitlesSaved={handleSubtitlesSaved}
                 onProgress={handleProgress}
                 onEnded={handleMediaEnded}
                 autoPlay={true}
                 onNext={nextFile ? handleNext : undefined}
-                nextName={nextFile?.name || null}
+                next={nextFile || null}
                 onPrevious={previousFile ? handlePrevious : undefined}
                 onReveal={revealInLibrary}
               />
             </ErrorBoundary>
           </div>
 
-          {currentFile && (
-            <div className="flex-none mt-3 px-3 py-2 bg-gray-800/50 rounded-lg">
-              <h2 className="text-base font-medium text-white truncate" title={currentFile.name}>
-                {currentFile.name}
-              </h2>
-              <p className="text-xs text-gray-400 font-mono truncate" title={currentFile.path}>
-                {currentFile.path}
-              </p>
-            </div>
-          )}
         </div>
       </main>
     </div>

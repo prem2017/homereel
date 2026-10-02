@@ -117,7 +117,7 @@ export const SubtitlePanel: React.FC<SubtitlePanelProps> = ({
   return (
     <div
       ref={bodyRef}
-      className="absolute top-12 right-0 bg-gray-900/95 backdrop-blur rounded-lg p-4 w-72 max-w-[90vw] max-h-[60vh] overflow-y-auto shadow-2xl border border-gray-700"
+      className="absolute bottom-full right-0 mb-10 bg-gray-900/95 backdrop-blur rounded-lg p-4 w-72 max-w-[90vw] max-h-[60vh] overflow-y-auto shadow-2xl border border-gray-700 text-left"
       onClick={(e) => e.stopPropagation()}
     >
       <h3 className="text-sm font-bold text-gray-400 mb-3 border-b border-gray-700 pb-1">Subtitles</h3>
