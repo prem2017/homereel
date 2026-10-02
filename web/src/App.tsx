@@ -10,7 +10,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { fetchFileTree } from './services/api';
 import { FileNode, SearchResult } from './types';
 import { readPref, writePref, PREF } from './utils/prefs';
-import { readTextScale } from './utils/textScale';
+import { cycleTextScale, readTextScale } from './utils/textScale';
 import { indexFiles, readProgress } from './utils/resume';
 import { findSiblings, folderOf, isPlayable, nextPlayable } from './utils/siblings';
 
@@ -43,10 +43,17 @@ function App() {
     });
   }, []);
 
+  // The interface's text size, from the header's Aa button (utils/textScale.ts).
+  const [textScale, setTextScale] = useState(readTextScale);
+  const textScaleRef = useRef(textScale);
+  textScaleRef.current = textScale;
+  const handleCycleTextScale = useCallback(() => setTextScale(cycleTextScale(textScaleRef.current)), []);
+
   // Resizable Sidebar State
   // Remembered between visits; 280px the first time - wide enough for "Episode 2"
-  // and its S01E02 marker side by side - grown with the text size.
-  const [sidebarWidth, setSidebarWidth] = useState(() => readPref(PREF.sidebarWidth, Math.round(280 * readTextScale())));
+  // and its S01E02 marker side by side. Kept as at 100% text and drawn grown with
+  // the text size, so pressing Aa widens the column along with its names.
+  const [sidebarWidth, setSidebarWidth] = useState(() => readPref(PREF.sidebarWidth, 280));
 
   // On a phone the sidebar is a drawer over the player rather than a column
   // beside it, so it starts closed there whatever was last chosen on a desktop -
@@ -280,8 +287,9 @@ function App() {
     const handleMouseUp = () => {
       setIsResizing(false);
       if (dragWidthRef.current !== null) {
-        setSidebarWidth(dragWidthRef.current);
-        writePref(PREF.sidebarWidth, dragWidthRef.current);
+        const width = Math.round(dragWidthRef.current / textScaleRef.current);
+        setSidebarWidth(width);
+        writePref(PREF.sidebarWidth, width);
         dragWidthRef.current = null;
       }
     };
@@ -318,6 +326,8 @@ function App() {
         sidebarOpen={sidebarOpen}
         onToggleSidebar={toggleSidebar}
         onHome={goHome}
+        textScale={textScale}
+        onCycleTextScale={handleCycleTextScale}
       />
 
       {/* Global Resize Overlay: Crucial for smooth dragging over iframes/videos */}
@@ -340,10 +350,10 @@ function App() {
           ref={sidebarRef}
           className={`flex flex-col border-r border-gray-800 ${isNarrow
             ? 'absolute inset-y-0 left-0 z-40 w-72 max-w-[85%] bg-gray-900 shadow-2xl'
-            : 'flex-none bg-gray-900/50 backdrop-blur-sm'}`}
+            : 'flex-none max-w-[60%] bg-gray-900/50 backdrop-blur-sm'}`}
           // The drawer takes its width from the class above; only the column is
           // draggable, and dragging is what this number records.
-          style={isNarrow ? undefined : { width: sidebarWidth }}
+          style={isNarrow ? undefined : { width: Math.round(sidebarWidth * textScale) }}
         >
           <div className="flex-none flex justify-between items-center px-4 pt-4 mb-2">
             <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Library</h2>

@@ -199,7 +199,8 @@ SD_Au-Service-De-La-France-S01E01_fr3.srt     resolution omitted when unknown
   button: 100/125/150%, per browser in prefs): every rem size follows; icons are
   pixel-sized, so `index.css` zooms `#root svg` by the same factor (`zoom`, which
   Chromium 47 has, rather than a transform). Applied in `main.tsx` before the first
-  paint. Subtitle sizes are their own.
+  paint. Subtitle sizes are their own. App owns the scale (the header gets it as a
+  prop) because the sidebar's pixel width has to follow it too.
 - **The strong focus outline shows only while keys move focus**: `main.tsx` adds
   `html.keyboard` on Tab or an arrow and removes it at the next mouse or touch
   press - `:focus-visible` is Chrome 86. The rule is `!important` because controls
@@ -213,6 +214,9 @@ SD_Au-Service-De-La-France-S01E01_fr3.srt     resolution omitted when unknown
   `cursor-none` while controls are hidden.
 - **Sidebar**: resizable column above `NARROW_WIDTH` (768px), drawer below. Only the
   header toggle writes its open state to `prefs`; crossing the threshold re-reads it.
+  Its width is stored as at 100% text and drawn times the text scale (capped at 60%
+  of the screen), so Aa widens it along with its names; a drag stores the width
+  divided by the scale.
 - **Below 768px the player is compact** (`compact`, from App's `isNarrow`; desktop
   and TV never see it): `CompactControls` over the picture - play and the skips in
   the middle, time and Fullscreen along the bottom, the seek bar on the edge,
@@ -326,7 +330,7 @@ and a full quota must never break playback.
 | `media-player:subtitle-language` | `top` / `bottom` / `download` → language code | the Source menus (`''`: the file named no language, or Off) and the Get subtitles menu |
 | `media-player:watched` | file path → ms when finished | the player, on `ended` and on a save in the last 30s (video only); Start over clears it |
 | `media-player:open-folders` | folder path → 1 | `FileTree`, as a set |
-| `media-player:prefs` | fixed keys → number | volume, mute, speed, both font sizes, sidebar width and open state, time left vs length, text size |
+| `media-player:prefs` | fixed keys → number | volume, mute, speed, both font sizes, sidebar width (as at 100% text) and open state, time left vs length, text size |
 
 - **Insertion order is recency** (`write` deletes, then sets): Home's Continue
   watching is that order reversed, and trimming is LRU.
