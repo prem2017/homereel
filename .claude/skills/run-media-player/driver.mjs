@@ -21,7 +21,7 @@ import { fileURLToPath } from 'node:url';
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const WORK = path.resolve(process.env.RUN_MP_WORK || path.join(os.tmpdir(), 'run-media-player'));
 const PLAYWRIGHT = 'playwright-core@1.59.1';
-const FIXTURES = 'fixtures-v3';
+const FIXTURES = 'fixtures-v4';
 const FFMPEG = process.env.RUN_MP_FFMPEG || 'ffmpeg';
 
 const say = (msg) => process.stderr.write(`[driver] ${msg}\n`);
@@ -88,8 +88,9 @@ const ensureMedia = () => {
     const srt = (text) => `1\n00:00:00,500 --> 00:00:39,000\n${text}\n`;
     fs.writeFileSync(at('Show/Episode 1.en.srt'), srt('Hello from the English file'));
     fs.writeFileSync(at('Show/Episode 1.srt'), Buffer.from(srt('Café crème, déjà vu'), 'latin1'));
-    // Hours left out, as WebVTT allows, and markup the overlay must draw rather than print.
-    fs.writeFileSync(at('Show/Episode 2.fr.vtt'), 'WEBVTT\n\n00:00.500 --> 00:39.000\n{\\an8}<i>Bonjour</i> tout le monde\n');
+    // Hours left out, as WebVTT allows, and markup the overlay must draw rather than
+    // print. On Episode 10, whose name Episode 1's menus must not mistake for theirs.
+    fs.writeFileSync(at('Show/Episode 10.fr.vtt'), 'WEBVTT\n\n00:00.500 --> 00:39.000\n{\\an8}<i>Bonjour</i> tout le monde\n');
     fs.writeFileSync(at('notes.txt'), 'Not media. The library must not list this.\n');
     fs.writeFileSync(path.join(pristine, '.done'), '');
   }

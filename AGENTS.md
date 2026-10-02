@@ -30,6 +30,13 @@ The `0_`/`1_`/`x_` prefixes sort `ls` into the order a new user needs. Do not ad
 `naming.js` (release parsing, ranking), `store.js` (the only writer to the media
 folder), `archive.js` (ZIP), `providers/` (one module per source).
 
+`web/src/components/MediaPlayer.tsx` holds the media element, playback state and
+layout; `player/` holds the rest of the player — `useSubtitleSlots` (what each
+slot shows, picks, offsets, the top cue), `useOnlineSubtitles` (search, download,
+the Subscene box), `useCuePlacement` (where both subtitles sit), `useFullscreen`,
+`usePlayerKeys` (keys and the shortcut list), and the `ControlBar`,
+`SubtitlePanel`, `ShortcutSheet`, `Notices` and `ProblemOverlay` they drive.
+
 ## Commands
 
 ```bash
@@ -180,8 +187,9 @@ SD_Au-Service-De-La-France-S01E01_fr3.srt     resolution omitted when unknown
   `cursor-none` while controls are hidden.
 - **Sidebar**: resizable column above `NARROW_WIDTH` (768px), drawer below. Only the
   header toggle writes its open state to `prefs`; crossing the threshold re-reads it.
-- **Shortcut sheet**: `SHORTCUTS`/`GESTURES` sit beside their handlers in
-  `MediaPlayer.tsx`. It opens on `?` and on a control-bar button — the TV cannot
+- **Shortcut sheet**: `SHORTCUTS` sits beside the key handler in
+  `player/usePlayerKeys.ts`, and `GESTURES` beside it describes `handleContainerClick`
+  in `MediaPlayer.tsx`. It opens on `?` and on a control-bar button — the TV cannot
   report the Shift that `?` needs.
 - **Panels over the film close on a click past them** (a `document` listener
   bounded by the wrapper ref). `handleContainerClick` returns early while the
@@ -213,7 +221,8 @@ SD_Au-Service-De-La-France-S01E01_fr3.srt     resolution omitted when unknown
   `main.tsx` registers `error`/`unhandledrejection` before the first render. All
   report through `reportToServer` (`utils/remoteLog.ts`).
 - **A reply that lands after the user switched videos changes nothing on screen.**
-  `useSubtitleDownload` (`openRef`) and `applySubtitle` (`filePathRef`) compare
+  `useSubtitleDownload` (`openRef`) and `applySubtitle` in `useOnlineSubtitles`
+  (`filePathRef`) compare
   against the video open now: late candidates are not offered, and a late download
   is saved and listed for its own video but never fills the new one's slot.
 
@@ -399,7 +408,7 @@ need an account to watch their own files.
   pack's own file). `applySubtitle` sends `[node, ...extras]` up;
   `handleSubtitlesSaved` returns the *same* array when nothing is new; slot clearing
   is keyed on `filePath` alone.
-- **The bottom cue is moved clear of overlays** through
+- **The bottom cue is moved clear of overlays** (`player/useCuePlacement.ts`) through
   `video::-webkit-media-text-track-container { transform: translate(-<shift>px, -<lift>px) }`
   (`::cue` cannot move the box):
   - lift is the `max()` (not the sum) of the measured clearance of each overlay in
@@ -426,7 +435,7 @@ need an account to watch their own files.
 - **Playback time goes to the DOM, not state** (`handleTimeUpdate` writes
   `progressRef`/`timeLabelRef`). A `useState` there re-renders the player 4×/s.
 - **`MediaPlayer` is `React.memo`; every prop must keep its identity** —
-  `onNext`, `onPrevious`, `onProgress`, `onEnded`, `onSubtitlesSaved` are
+  `onNext`, `onPrevious`, `onProgress`, `onEnded`, `onSubtitlesSaved`, `onReveal` are
   `useCallback`s in `App.tsx`, `siblings` is the memoized `siblingsWithSaved`.
 - The `::cue` `<style>` is mutated through `styleRef`, not rendered as JSX (that
   invalidated the CSSOM on every render).

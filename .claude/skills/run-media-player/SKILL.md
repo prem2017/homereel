@@ -73,8 +73,8 @@ EOF
 - Server log: `$TMPDIR/run-media-player/server.log` — every request, plus
   `[REMOTE ERROR]` lines the page reports.
 - Fixtures, copied fresh each run: `Show/Episode 1|2|10.mp4` (40s; Episode 1 has
-  `Episode 1.en.srt` in UTF-8 and `Episode 1.srt` in windows-1252, Episode 2 has
-  `Episode 2.fr.vtt` with no hours in its timings and `<i>`/`{\an8}` in its text),
+  `Episode 1.en.srt` in UTF-8 and `Episode 1.srt` in windows-1252, Episode 10 has
+  `Episode 10.fr.vtt` with no hours in its timings and `<i>`/`{\an8}` in its text),
   `Le Bureau des Légendes/Le.Bureau.des.Legendes.S01E01.1080p.mp4`,
   `Long/Documentary.mp4` (120s, long enough to resume), `Dark/Night.mp4` (black, for
   `dark`), `TV/Dark Matter/Season 1/Dark.Matter.S01E01|S01E02.720p.mp4` and
