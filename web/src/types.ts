@@ -16,23 +16,6 @@ export interface SearchResult {
   mimeType?: string;
 }
 
-export interface SubtitleTrack {
-  id: string;
-  label: string;
-  src: string;
-  language: string;
-}
-
-export interface MediaState {
-  isPlaying: boolean;
-  currentTime: number;
-  duration: number;
-  volume: number;
-  isMuted: boolean;
-  isFullscreen: boolean;
-  playbackRate: number;
-}
-
 // A language offered in the subtitle menus. The list comes from the server
 // because SUBTITLE_LANGUAGES in .env can replace it, so there is one source of
 // truth rather than a copy in the bundle that silently disagrees.

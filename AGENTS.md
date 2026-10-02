@@ -39,7 +39,7 @@ folder), `archive.js` (ZIP), `providers/` (one module per source).
 ./x_stop                     # whichever runtime is running
 
 ./scripts/run-dev            # Vite + Express with live reload
-npm run typecheck            # tsc --noEmit, strict mode; keep it clean
+npm run typecheck            # tsc --noEmit, strict + no unused locals/parameters; keep it clean
 npm test                     # vitest in web (logic only, no DOM) + node --test in server
                              # (includes HTTP tests); needs Node 20.19+ or 22.12+
 npm run build                # frontend -> web/dist
@@ -380,6 +380,9 @@ need an account to watch their own files.
   `http://<ip>:5000/?v=2` breaks out.
 - **`/api/log` is the TV's only error channel** — `[REMOTE ERROR]` lines in
   `./1_run logs`. Do not remove it. It coerces and caps its untrusted input.
+- **The request log stays quiet so those lines stay visible**: each client's user
+  agent is logged once (again if it changes), and `/api/stream` once per file a
+  client opens - a player sends a range request per seek.
 - **Subtitle sync is two mechanisms.** Top overlay: `cueAt(cues, t - topOffset)`.
   Bottom native `<track>`: `toVttBlob()` rewrites the timings and the track is
   remounted, so `appliedBottomOffset` trails by `OFFSET_COMMIT_MS` (otherwise every
@@ -472,4 +475,3 @@ Not addressed, deliberately:
   `ffmpeg -map 0:a:<n> -c copy` into a cache served by `/api/stream`. Never pipe
   ffmpeg to the response (no byte ranges). Costs ffmpeg in the image and a guarded
   write path outside `MEDIA_DIR`.
-- `SUPPORTED_*_EXTENSIONS` in `web/src/constants.ts` are exported but unused.

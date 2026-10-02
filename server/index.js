@@ -32,10 +32,25 @@ app.use(express.json());
 // proxies /api. Allowing other origins only lets any website someone on the
 // network has open read the library and start subtitle downloads.
 
-// Logging middleware
+// Request log: one line per request, minus the two things that scrolled the TV's
+// [REMOTE ERROR] lines out of ./1_run logs. The user agent is said once per client
+// address (again if it changes), and /api/stream - requested once per seek - once
+// per file a client opens.
+const clientAgents = new Map(); // address -> user agent
+const clientStreams = new Map(); // address -> the file it last streamed
 app.use((req, res, next) => {
     const timestamp = new Date().toLocaleString();
-    console.log(`[${timestamp}] ${req.method} ${req.url} - IP: ${req.ip} - Device: ${req.headers['user-agent']}`);
+    const agent = req.headers['user-agent'] || 'unknown';
+    if (clientAgents.get(req.ip) !== agent) {
+        clientAgents.set(req.ip, agent);
+        console.log(`[${timestamp}] Client ${req.ip} - Device: ${agent}`);
+    }
+    if (req.path === '/api/stream') {
+        const file = String(req.query.path);
+        if (clientStreams.get(req.ip) === file) return next();
+        clientStreams.set(req.ip, file);
+    }
+    console.log(`[${timestamp}] ${req.method} ${req.url} - IP: ${req.ip}`);
     next();
 });
 

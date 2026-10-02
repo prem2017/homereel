@@ -38,8 +38,8 @@ put('Old/Amélie.srt', Buffer.from('1\r\n00:00:01,000 --> 00:00:02,000\r\nCaf\xe
 put('notes.txt', 'not media');
 put('Ranges/clip.mp4', '0123456789');
 
-// Every request is logged; none of that is what these tests are about.
-mock.method(console, 'log', () => { });
+// Every request is logged; only one test is about that.
+const logged = mock.method(console, 'log', () => { });
 
 let server;
 let base;
@@ -189,4 +189,21 @@ test('refuses a range it cannot satisfy', async () => {
         assert.strictEqual(response.status, 416, range);
         assert.strictEqual(response.headers.get('content-range'), 'bytes */10');
     }
+});
+
+test('logs a stream once per file a client opens, not once per seek', async () => {
+    const lines = () => logged.mock.calls.map((call) => String(call.arguments[0]));
+    const streamLines = (file) => lines().filter((line) => line.includes('/api/stream') && line.includes(encodeURIComponent(file))).length;
+
+    put('Ranges/other.mp4', '0123456789');
+    const before = streamLines('Ranges/other.mp4');
+    for (const range of ['bytes=0-1', 'bytes=2-3', 'bytes=4-5']) {
+        await (await get(`/api/stream?${query({ path: 'Ranges/other.mp4' })}`, { headers: { Range: range } })).text();
+    }
+    assert.strictEqual(streamLines('Ranges/other.mp4') - before, 1);
+
+    // The user agent goes out once per client, not on every request line.
+    const agentLines = lines().filter((line) => line.includes('Device:'));
+    assert.strictEqual(new Set(agentLines.map((line) => line.replace(/^\[[^\]]*\] /, ''))).size, agentLines.length);
+    assert.ok(lines().filter((line) => line.includes('GET /api/')).every((line) => !line.includes('Device:')));
 });

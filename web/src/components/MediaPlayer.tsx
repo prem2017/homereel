@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Play, Pause, Volume2, VolumeX, Maximize, Minimize,
-  Type, ArrowLeft, ArrowRight, SkipForward, SkipBack, RotateCcw, RotateCw, Gauge,
+  Type, SkipForward, SkipBack, RotateCcw, RotateCw, Gauge,
   Loader2, AlertTriangle, ChevronLeft, ChevronRight, X, Keyboard
 } from 'lucide-react';
 import { formatTime } from '../utils/time';
