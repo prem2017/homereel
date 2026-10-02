@@ -18,6 +18,7 @@ import { getStreamUrl, getSubtitleTextUrl } from '../services/api';
 import { useSubtitleDownload, SavedSubtitles, reusableSubtitle } from '../hooks/useSubtitleDownload';
 import { useSubsceneId, SubsceneIdState } from '../hooks/useSubsceneId';
 import { FileNode, SubtitleCandidate } from '../types';
+import { CueText } from './player/CueText';
 
 interface MediaPlayerProps {
   filePath: string | null;
@@ -1411,7 +1412,7 @@ const MediaPlayerView: React.FC<MediaPlayerProps> = ({
             className="bg-black/75 text-white px-3 py-1.5 rounded leading-relaxed inline-block max-w-[80%] whitespace-pre-wrap"
             style={{ fontSize: `${topFontSize}px` }}
           >
-            {currentTopText}
+            <CueText text={currentTopText} />
           </span>
         </div>
       )}

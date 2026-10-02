@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseSubtitleText, toVttBlob, cueAt, VTTCue } from './subtitleParser';
+import { parseSubtitleText, toVttBlob, cueAt, cueRuns, VTTCue } from './subtitleParser';
 
 const SRT = `1
 00:00:01,000 --> 00:00:04,500
@@ -49,6 +49,69 @@ describe('parseSubtitleText', () => {
     it('returns nothing rather than throwing on junk input', () => {
         expect(parseSubtitleText('not a subtitle file at all')).toEqual([]);
         expect(parseSubtitleText('')).toEqual([]);
+    });
+
+    it('reads VTT timings written without hours, as the bottom slot does', () => {
+        // Hours are optional in WebVTT. Requiring them found no cues at all, so
+        // the top slot stayed empty for a file the bottom slot played.
+        const cues = parseSubtitleText("WEBVTT\n\n00:01.000 --> 00:04.000\nI'm looking for a dragon.\n");
+        expect(cues).toEqual([{ start: 1, end: 4, text: "I'm looking for a dragon." }]);
+    });
+
+    it('keeps a line of dialogue that is only a number', () => {
+        // Only a number followed by a timing line is an SRT counter.
+        const cues = parseSubtitleText('1\n00:00:01,000 --> 00:00:03,000\n1984\n\n2\n00:00:04,000 --> 00:00:05,000\n42\n');
+        expect(cues.map(c => c.text)).toEqual(['1984', '42']);
+    });
+
+    it('still reads a counter written without the blank line before it', () => {
+        const cues = parseSubtitleText('1\n00:00:01,000 --> 00:00:02,000\nOne\n2\n00:00:03,000 --> 00:00:04,000\nTwo\n');
+        expect(cues.map(c => c.text)).toEqual(['One', 'Two']);
+    });
+
+    it('accepts any whitespace around the arrow, and cue settings after it', () => {
+        expect(parseSubtitleText('1\n00:00:01,000  -->  00:00:03,000\nWide\n')).toHaveLength(1);
+        expect(parseSubtitleText('WEBVTT\n\n00:00:01.000 --> 00:00:03.000 align:start position:10%\nSet\n')[0].text).toBe('Set');
+    });
+
+    it('keeps <i> markup for the overlay but drops ASS codes', () => {
+        const cues = parseSubtitleText('1\n00:00:01,000 --> 00:00:02,000\n{\\an8}<i>Nobody answered.</i>\n');
+        expect(cues[0].text).toBe('<i>Nobody answered.</i>');
+    });
+
+    it('does not end a cue on a line that was only ASS codes', () => {
+        const cues = parseSubtitleText('1\n00:00:01,000 --> 00:00:02,000\n{\\an8}\nUp here\n');
+        expect(cues).toEqual([{ start: 1, end: 2, text: 'Up here' }]);
+    });
+});
+
+describe('cueRuns', () => {
+    it('turns <i>, <b> and <u> into flags instead of text', () => {
+        expect(cueRuns('<i>Nobody answered.</i>')).toEqual([
+            { text: 'Nobody answered.', italic: true, bold: false, underline: false },
+        ]);
+        expect(cueRuns('Say <b>my</b> name')).toEqual([
+            { text: 'Say ', italic: false, bold: false, underline: false },
+            { text: 'my', italic: false, bold: true, underline: false },
+            { text: ' name', italic: false, bold: false, underline: false },
+        ]);
+    });
+
+    it('drops other tags and keeps their text', () => {
+        const runs = cueRuns('<font color="#ffff00">Yellow</font> <c.loud>and</c> <v Bob>Bob</v><00:00:01.500>');
+        expect(runs.map(r => r.text).join('')).toBe('Yellow and Bob');
+    });
+
+    it('decodes entities and leaves things that only look like tags', () => {
+        expect(cueRuns('Tom &amp; Jerry &lt;3').map(r => r.text).join('')).toBe('Tom & Jerry <3');
+        expect(cueRuns('I <3 you').map(r => r.text).join('')).toBe('I <3 you');
+    });
+
+    it('survives unbalanced markup', () => {
+        expect(cueRuns('</i>plain<i>tilted')).toEqual([
+            { text: 'plain', italic: false, bold: false, underline: false },
+            { text: 'tilted', italic: true, bold: false, underline: false },
+        ]);
     });
 });
 
@@ -103,6 +166,12 @@ describe('toVttBlob', () => {
         const text = await withCapturedBlob(() => toVttBlob(withText, 5));
         expect(text).toContain('Meet me at 01:02.500');
         expect(text).toContain('00:00:06.000 --> 00:00:09.500');
+    });
+
+    it('drops ASS codes from the text, and a line that was nothing else', async () => {
+        const text = await withCapturedBlob(() => toVttBlob('1\n00:00:01,000 --> 00:00:02,000\n{\\an8}Top\n{\\i1}\nStill here\n'));
+        expect(text).toContain('Top\nStill here');
+        expect(text).not.toContain('{\\');
     });
 
     it('handles VTT timestamps written without an hours field', async () => {
