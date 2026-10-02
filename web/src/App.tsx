@@ -444,6 +444,7 @@ function App() {
                 onPrevious={previousFile ? handlePrevious : undefined}
                 onReveal={revealInLibrary}
                 compact={isNarrow}
+                onPlayFile={handleSelectFile}
               />
             </ErrorBoundary>
           </div>

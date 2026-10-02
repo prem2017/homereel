@@ -265,6 +265,16 @@ SD_Au-Service-De-La-France-S01E01_fr3.srt     resolution omitted when unknown
   tile. It has the loading, error and empty states the library has. The header's
   HomeReel button goes there by closing the file; the sidebar no longer lists
   Continue watching.
+- **Music gets a Now playing view** (`player/NowPlaying.tsx`) instead of a pulsing
+  icon: the folder's cover (`cover`/`folder`/`front`/`album`/`poster` image beside
+  the track), the title without its number, the album from the folder, "Track n of
+  m", and the folder's tracks with their lengths once known (`durationStore`);
+  picking one goes through `onPlayFile`, a stable prop like `onNext`. Audio keeps
+  its controls showing - there is no picture for them to hide from.
+- **Media Session** (lock screen, notification): title, artist (album folder or
+  show), album and cover, and play/pause/next/previous/seek wired to the player's
+  own functions; position at the save cadence. Feature-detected and wrapped in
+  try/catch - the TV has none of it.
 - **The player stays mounted while nothing plays**, rendering nothing, so its hooks
   keep what the session fetched. Leaving a file saves the position it was left at
   (keyed to that file's path, never written after `ended`).

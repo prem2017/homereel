@@ -1,5 +1,5 @@
-import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { Volume2, Subtitles, SkipForward, SkipBack, Loader2 } from 'lucide-react';
+import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
+import { Subtitles, SkipForward, SkipBack, Loader2 } from 'lucide-react';
 import { formatTime } from '../utils/time';
 import { safePlay } from '../utils/media';
 import { readPref, writePref, PREF } from '../utils/prefs';
@@ -15,6 +15,9 @@ import { SubtitlePanel } from './player/SubtitlePanel';
 import { ShortcutSheet } from './player/ShortcutSheet';
 import { ResumeNotice, UpNextNotice } from './player/Notices';
 import { InfoLine } from './player/InfoLine';
+import { NowPlaying, coverIn } from './player/NowPlaying';
+import { foldersOf, fullTitleOf, labelOf } from '../utils/mediaLabel';
+import { isPlayable } from '../utils/siblings';
 import { languageName, languageOfSubtitle } from '../utils/subtitleLabel';
 import { ProblemOverlay } from './player/ProblemOverlay';
 import { useSubtitleSlots } from './player/useSubtitleSlots';
@@ -47,6 +50,9 @@ interface MediaPlayerProps {
   /** A phone-sized window (below 768px): controls over the picture, a box the
    *  film's shape, notices below it. Desktop and TV never see it. */
   compact?: boolean;
+  /** Play another file - a track picked from the album's list. Stable, like
+   *  the others. */
+  onPlayFile?: (node: FileNode) => void;
 }
 
 type Status = 'idle' | 'loading' | 'buffering' | 'ready' | 'error';
@@ -63,7 +69,7 @@ const UP_NEXT_SECONDS = 6;
 
 const MediaPlayerView: React.FC<MediaPlayerProps> = ({
   file, siblings = [], onEnded, autoPlay, onNext, onPrevious,
-  next, onSubtitlesSaved, onProgress, onReveal, compact = false
+  next, onSubtitlesSaved, onProgress, onReveal, compact = false, onPlayFile
 }) => {
   const filePath = file ? file.path : null;
   const fileName = file ? file.name : null;
@@ -157,6 +163,17 @@ const MediaPlayerView: React.FC<MediaPlayerProps> = ({
   });
 
   const isVideoFile = !!filePath && !mimeType?.startsWith('audio');
+  const isAudioFile = !!filePath && !!mimeType?.startsWith('audio');
+  // Read by the controls' timer, which outlives the render it was set in.
+  const isAudioRef = useRef(isAudioFile);
+  useEffect(() => { isAudioRef.current = isAudioFile; }, [isAudioFile]);
+
+  // An album's tracks and cover, for the Now playing view and the lock screen.
+  const tracks = useMemo(
+    () => (isAudioFile ? siblings.filter(n => isPlayable(n) && !!n.mimeType?.startsWith('audio/')) : []),
+    [isAudioFile, siblings],
+  );
+  const cover = useMemo(() => file?.art || coverIn(siblings), [file, siblings]);
 
   // Click Gesture States
   const clickTimeoutRef = useRef<number | null>(null);
@@ -370,7 +387,8 @@ const MediaPlayerView: React.FC<MediaPlayerProps> = ({
     setShowControls(true);
     if (controlsTimeoutRef.current) window.clearTimeout(controlsTimeoutRef.current);
     controlsTimeoutRef.current = window.setTimeout(() => {
-      if (isPlayingRef.current && !showSubSettingsRef.current && !showHelpRef.current) {
+      // Music keeps its controls: there is no picture for them to hide from.
+      if (isPlayingRef.current && !showSubSettingsRef.current && !showHelpRef.current && !isAudioRef.current) {
         setShowControls(false);
       }
     }, HIDE_CONTROLS_AFTER);
@@ -393,6 +411,42 @@ const MediaPlayerView: React.FC<MediaPlayerProps> = ({
     onNext, onPrevious, nudgeOffset, bottomSubtitle, setIsPlaying, showFeedbackIcon, toggleSubtitle,
     setShowHelp, setShowSubSettings, showHelpRef, showSubSettingsRef,
   });
+
+  // The lock screen and the notification on a phone: what is playing, the
+  // album's cover, and play, pause, next, previous and seek wired to the
+  // player's own functions. Feature-detected - the TV has no Media Session, and
+  // there this does nothing at all.
+  useEffect(() => {
+    const session = (navigator as any).mediaSession;
+    const Metadata = (window as any).MediaMetadata;
+    if (!session || !file) return;
+    const folders = foldersOf(file.path);
+    const folder = folders.length > 0 ? folders[folders.length - 1] : '';
+    try {
+      if (Metadata) {
+        session.metadata = new Metadata({
+          title: isAudioFile ? labelOf(file).title : fullTitleOf(file),
+          artist: isAudioFile ? folder : (labelOf(file).series || ''),
+          album: folder,
+          artwork: cover ? [{ src: new URL(getStreamUrl(cover), window.location.href).href }] : [],
+        });
+      }
+    } catch { /* a partial implementation: the controls still work */ }
+    const actions: Array<[string, ((details: { seekTime?: number }) => void) | null]> = [
+      ['play', () => { if (videoRef.current) { safePlay(videoRef.current); setIsPlaying(true); } }],
+      ['pause', () => { videoRef.current?.pause(); setIsPlaying(false); }],
+      ['previoustrack', onPrevious || null],
+      ['nexttrack', onNext || null],
+      ['seekbackward', () => skip(-10)],
+      ['seekforward', () => skip(10)],
+      ['seekto', (details) => { if (typeof details.seekTime === 'number') seekTo(details.seekTime); }],
+    ];
+    const set = (action: string, handler: ((details: { seekTime?: number }) => void) | null) => {
+      try { session.setActionHandler(action, handler); } catch { /* not one this browser knows */ }
+    };
+    actions.forEach(([action, handler]) => set(action, handler));
+    return () => actions.forEach(([action]) => set(action, null));
+  }, [file, isAudioFile, cover, onNext, onPrevious, skip, seekTo]);
 
   const paintBuffered = () => {
     const video = videoRef.current;
@@ -443,6 +497,13 @@ const MediaPlayerView: React.FC<MediaPlayerProps> = ({
     if (filePath && Math.abs(t - lastSavedRef.current) >= RESUME_SAVE_EVERY) {
       lastSavedRef.current = t;
       resumeStore.write(filePath, t);
+      // Where the lock screen's scrubber should be, at the same cadence.
+      const session = (navigator as any).mediaSession;
+      if (session && session.setPositionState && isFinite(video.duration) && video.duration > 0) {
+        try {
+          session.setPositionState({ duration: video.duration, playbackRate: video.playbackRate, position: Math.min(t, video.duration) });
+        } catch { /* out of range while seeking: the next save puts it right */ }
+      }
       // Into the credits counts as finished: that is where people stop.
       if (isVideoFile && isFinishedAt(t, video.duration) && !watchedStore.read(filePath)) {
         watchedStore.write(filePath, Date.now());
@@ -603,8 +664,10 @@ const MediaPlayerView: React.FC<MediaPlayerProps> = ({
   // hooks keep what this session learned (what was downloaded, by which id).
   if (!filePath) return null;
 
-  const isAudio = mimeType?.startsWith('audio');
+  const isAudio = isAudioFile;
   const isBusy = status === 'loading' || status === 'buffering';
+  // Track lengths learned so far - each one the first time it plays.
+  const trackLengths = new Map(isAudio ? durationStore.entries() : []);
 
   const mediaEvents = {
     onTimeUpdate: handleTimeUpdate,
@@ -705,10 +768,14 @@ const MediaPlayerView: React.FC<MediaPlayerProps> = ({
 
       {/* Video / Audio */}
       {isAudio ? (
-        <div className="absolute inset-0 flex items-center justify-center bg-gray-900 z-0">
-          <div className="animate-pulse"><Volume2 size={96} className="text-blue-500 opacity-50" /></div>
+        <>
+          {file && (
+            <NowPlaying
+              file={file} tracks={tracks} cover={cover} lengths={trackLengths} compact={compact} onPlayFile={onPlayFile}
+            />
+          )}
           <audio ref={videoRef as React.RefObject<HTMLAudioElement>} src={getStreamUrl(filePath)} {...mediaEvents} />
-        </div>
+        </>
       ) : (
         <video
           ref={videoRef}
