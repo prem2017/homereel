@@ -236,9 +236,11 @@ SD_Au-Service-De-La-France-S01E01_fr3.srt     resolution omitted when unknown
   in `MediaPlayer.tsx`. It opens on `?` and on a control-bar button — the TV cannot
   report the Shift that `?` needs.
 - **Panels over the film close on a click past them** (a `document` listener
-  bounded by the wrapper ref). `handleContainerClick` returns early while the
-  subtitle panel is open, so dismissing it does not also pause. Escape order: help
-  sheet → subtitle panel → fullscreen.
+  bounded by the wrapper ref; another button that opens the subtitle panel - the
+  phone's chip - is marked `data-subtitle-toggle`). `handleContainerClick` returns
+  early while the subtitle panel is open, so dismissing it does not also pause.
+  Escape order: help sheet → subtitle panel → fullscreen; the phone's ⋯ menu closes
+  on Escape too.
 - **The library lists media only** (`filterTree` in `FileTree.tsx`; `searchTree` in
   `server/library.js` applies the same rule to `all`). `/api/files` still returns
   subtitles: `findSiblings` reads the unfiltered tree to fill the Source menus, and
@@ -343,8 +345,9 @@ and a full quota must never break playback.
   c/t keys; a download that filled an empty slot) - c and t record the pick but
   leave the language alone. A read returns a node, `null` for a deliberate Off (stored as `''` — never
   treat `''` as a deletion), or `undefined` (never chose, or the file is gone).
-- The `::cue` effect is keyed `[bottomFontSize, filePath, showControls]`: its
-  `<style>` element exists only while something is playing.
+- The `::cue` effect (`writeCueStyle`) is keyed on the font size, `filePath` and
+  everything whose size it measures (controls, notices, panel, fullscreen,
+  `compact`): its `<style>` element exists only while something is playing.
 - Volume must be written onto the media element, not only into state, or a new file
   plays at full volume.
 

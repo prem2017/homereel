@@ -225,10 +225,12 @@ function App() {
     for (let at: FileNode | undefined = nextFile; at && out.length < 5; at = nextPlayable(fileTree, at.path)) out.push(at);
     return out;
   }, [isNarrow, nextFile, fileTree]);
+  // Walked once per library, not on every position save.
+  const artByFolder = useMemo(() => folderArt(fileTree), [fileTree]);
   const going = useMemo(() => (isNarrow && currentFile
-    ? continueCards(fileTree, filesByPath, viewing.positions, viewing.durations, viewing.watched, folderArt(fileTree), 5)
+    ? continueCards(fileTree, filesByPath, viewing.positions, viewing.durations, viewing.watched, artByFolder, 5)
       .filter(card => card.node.path !== currentFile.path && !upcoming.some(n => n.path === card.node.path))
-    : []), [isNarrow, currentFile, fileTree, filesByPath, viewing, upcoming]);
+    : []), [isNarrow, currentFile, fileTree, filesByPath, viewing, upcoming, artByFolder]);
 
   // Autoplay-on-ended and the player's Next button are the same operation.
   //
