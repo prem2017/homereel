@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { Play, Volume2, Type, SkipForward, SkipBack, Loader2 } from 'lucide-react';
+import { Volume2, Type, SkipForward, SkipBack, Loader2 } from 'lucide-react';
 import { formatTime } from '../utils/time';
 import { safePlay } from '../utils/media';
 import { readPref, writePref, PREF } from '../utils/prefs';
@@ -138,6 +138,13 @@ const MediaPlayerView: React.FC<MediaPlayerProps> = ({
 
   const isScrubbingRef = useRef(false);
   const lastSavedRef = useRef(0);
+  // Where playback was at the last timeupdate, and which file last finished - so
+  // leaving a file (Home, Next, another pick) saves the seconds since the last
+  // save, and never brings a finished one back to Continue watching. Both carry
+  // the path: the next file's first events can arrive before the old one is
+  // let go of, and must not be written under its name.
+  const lastPlayedRef = useRef<{ path: string; t: number } | null>(null);
+  const endedRef = useRef<string | null>(null);
 
   // Mirrors of state that timers and DOM listeners read. Those callbacks are created
   // once and would otherwise keep reading whatever the value was at that moment.
@@ -208,6 +215,17 @@ const MediaPlayerView: React.FC<MediaPlayerProps> = ({
       }
     }
   }, [filePath, autoPlay]);
+
+  // The position a file was left at, written as it is left. The last save can be
+  // five seconds back, which is the gap between "where I stopped" and where
+  // Continue watching took it up again.
+  useEffect(() => () => {
+    const last = lastPlayedRef.current;
+    if (!filePath || !last || last.path !== filePath || endedRef.current === filePath) return;
+    if (last.t <= 0 || Math.abs(last.t - lastSavedRef.current) < 1) return;
+    resumeStore.write(filePath, last.t);
+    onProgress?.();
+  }, [filePath]);
 
   // Apply Rate
   useEffect(() => {
@@ -354,6 +372,7 @@ const MediaPlayerView: React.FC<MediaPlayerProps> = ({
     }
 
     slots.updateTopCue(t);
+    if (filePath) lastPlayedRef.current = { path: filePath, t };
 
     // Distance, not elapsed time: a seek backwards used to leave the saved
     // position ahead of where playback actually was, and it stayed there until
@@ -397,6 +416,7 @@ const MediaPlayerView: React.FC<MediaPlayerProps> = ({
 
   const handleEnded = () => {
     setIsPlaying(false);
+    endedRef.current = filePath;
     // Finished means there is nothing to come back to - and the library has to
     // hear about the removal as well as the writes, or the row stays. It does
     // remember that this one was seen to the end.
@@ -516,16 +536,9 @@ const MediaPlayerView: React.FC<MediaPlayerProps> = ({
     clickTimeoutRef.current = window.setTimeout(() => { clickCountRef.current = 0; }, GESTURE_WINDOW);
   };
 
-  if (!filePath) {
-    return (
-      <div className="flex items-center justify-center h-full bg-black text-gray-500 rounded-lg shadow-inner">
-        <div className="text-center">
-          <Play size={48} className="mx-auto mb-4 opacity-50" />
-          <p className="text-xl">Select media to play</p>
-        </div>
-      </div>
-    );
-  }
+  // Nothing open: Home has the screen. The player stays mounted, empty, so its
+  // hooks keep what this session learned (what was downloaded, by which id).
+  if (!filePath) return null;
 
   const isAudio = mimeType?.startsWith('audio');
   const isBusy = status === 'loading' || status === 'buffering';

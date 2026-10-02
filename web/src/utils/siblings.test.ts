@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { findSiblings, folderOf, isPlayable, isSubtitleFile, subtitlesFor } from './siblings';
+import { findSiblings, folderOf, isPlayable, isSubtitleFile, subtitlesFor, nextPlayable, childrenOf } from './siblings';
 import type { FileNode } from '../types';
 
 const file = (path: string, mimeType = 'video/mp4'): FileNode => ({
@@ -148,5 +148,40 @@ describe('folderOf', () => {
   it('is empty at the library root', () => {
     expect(folderOf('Foo.mp4')).toBe('');
     expect(folderOf('Movies/Foo.mp4')).toBe('Movies/');
+  });
+});
+
+describe('nextPlayable', () => {
+  const s1e1 = file('TV/Show/Season 1/S01E01.mp4');
+  const s1e2 = file('TV/Show/Season 1/S01E02.mp4');
+  const nfo = other('TV/Show/Season 1/release.nfo');
+  const s2e1 = file('TV/Show/Season 2/S02E01.mp4');
+  const s10e1 = file('TV/Show/Season 10/S10E01.mp4');
+  const tree = [dir('TV', [dir('TV/Show', [
+    dir('TV/Show/Season 1', [s1e1, s1e2, nfo]),
+    dir('TV/Show/Season 10', [s10e1]),
+    dir('TV/Show/Season 2', [sub('TV/Show/Season 2/S02E01.srt'), s2e1]),
+    dir('TV/Show/Extras', [file('TV/Show/Extras/Making of.mp4')]),
+  ])])];
+
+  it('steps to the next playable file in the folder', () => {
+    expect(nextPlayable(tree, s1e1.path)).toBe(s1e2);
+  });
+
+  it('carries on into the next season, by number rather than by name', () => {
+    expect(nextPlayable(tree, s1e2.path)).toBe(s2e1);
+    expect(nextPlayable(tree, s2e1.path)).toBe(s10e1);
+  });
+
+  it('stops at the end of the last season, and in a folder that is not a season', () => {
+    expect(nextPlayable(tree, s10e1.path)).toBeUndefined();
+    const films = [dir('Films', [file('Films/A.mp4')]), dir('Films 2', [file('Films 2/B.mp4')])];
+    expect(nextPlayable(films, 'Films/A.mp4')).toBeUndefined();
+  });
+
+  it('works at the root of the library', () => {
+    const root = [file('A.mp4'), sub('A.srt'), file('B.mp4')];
+    expect(nextPlayable(root, 'A.mp4')).toBe(root[2]);
+    expect(childrenOf(root, '')).toBe(root);
   });
 });

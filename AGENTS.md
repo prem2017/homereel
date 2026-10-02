@@ -213,17 +213,32 @@ SD_Au-Service-De-La-France-S01E01_fr3.srt     resolution omitted when unknown
   accents or punctuation (`searchKey`), so folder names and `Le.Bureau.des.Legendes`
   match. Listings are sorted with a numeric collator (Episode 2 before Episode 10).
 - **The tree is fetched at load, by the rescan button, and when a search hit is not
-  in it** (`loadLibrary`). The server answers from its last scan, at most a minute
-  old (`libraryTree`); the rescan button asks for `?fresh=1`, and a subtitle download
-  clears the cache. Search reads the same scan.
+  in it** (`loadLibrary`). A rescan keeps the current tree on screen. The player's
+  siblings are a `useMemo` over the tree, so a rescan reaches its menus and Next.
+  The server answers from its last scan, at most a minute old (`libraryTree`); the
+  rescan button asks for `?fresh=1`, and a subtitle download clears the cache.
+  Search reads the same scan.
 - **A file node says what its name means**: `size`, `mtime`, and for media `info`
   (`describeMedia`: title, year, season, episode, episode title, resolution, source,
   codec, or a song's track number) plus `art` (`poster`/`folder`/`cover.jpg` for a
   folder, `<name>-poster.jpg` for a file). The client shows them through
-  `utils/mediaLabel.ts`; paths, row ids and search keep the raw name. A rescan keeps the current tree on screen. The player's
-  siblings are a `useMemo` over the tree, so a rescan reaches its menus and Next.
+  `utils/mediaLabel.ts`; paths, row ids and search keep the raw name.
 - `playableSiblings` in `App.tsx` uses `isPlayable`: Next/Previous step only through
-  what the library lists, never a release folder's `.nfo`/`.txt`.
+  what the library lists, never a release folder's `.nfo`/`.txt`. Next (and Up next)
+  is `nextPlayable` in `utils/siblings.ts`: at the end of a season folder ("Season
+  1", "S01") it carries on to the first episode of the next season beside it.
+- **Home shows while nothing plays** (`components/Home.tsx`, rows worked out in
+  `utils/home.ts`): Continue watching (what `isResumable` would resume, then the
+  next unwatched episode of a show whose last episode was finished), Recently added
+  (by `mtime`; an album and a show's new episodes are one card each) and a Browse
+  tile per top-level folder, which opens it in the library (`reveal` on `FileTree`).
+  Cards use a file's own art, else the nearest folder's (`artFor`), else a coloured
+  tile. It has the loading, error and empty states the library has. The header's
+  HomeReel button goes there by closing the file; the sidebar no longer lists
+  Continue watching.
+- **The player stays mounted while nothing plays**, rendering nothing, so its hooks
+  keep what the session fetched. Leaving a file saves the position it was left at
+  (keyed to that file's path, never written after `ended`).
 - **No mock data.** Failures surface as `loadError` / `searchError`. A fake tree
   once made a broken `MEDIA_DIR` look fine.
 - **Loading is a third state**: `loading → loadError → empty → tree`. Without it a
@@ -260,11 +275,11 @@ and a full quota must never break playback.
 | `media-player:open-folders` | folder path → 1 | `FileTree`, as a set |
 | `media-player:prefs` | fixed keys → number | volume, mute, speed, both font sizes, sidebar width and open state |
 
-- **Insertion order is recency** (`write` deletes, then sets): "continue watching" is
-  that order reversed, and trimming is LRU.
+- **Insertion order is recency** (`write` deletes, then sets): Home's Continue
+  watching is that order reversed, and trimming is LRU.
 - **Continue watching offers only what pressing it would resume** — `isResumable()`
-  in `utils/resume.ts`: past 30s and not within 30s of the end — plus the file
-  playing. The player resumes by the same helper.
+  in `utils/resume.ts`: past 30s and not within 30s of the end. The player resumes
+  by the same helper.
 - Position and duration are separate stores: seconds to resume, the pair for a bar.
   No duration, no bar.
 - **The library reads, the player writes.** `App` re-reads on selection and on the

@@ -215,7 +215,8 @@ const pageHelpers = () => {
         topCue: text(document.querySelector('div.absolute.z-20.text-center.pointer-events-none > span')),
         fullscreen: !!(document.fullscreenElement || document.webkitFullscreenElement),
         alert: text(document.querySelector('[role="alert"]')),
-        continueWatching: recent ? Array.from(recent.parentElement.querySelectorAll('button')).map((b) => b.title) : [],
+        // The cards on Home, which shows while nothing plays.
+        continueWatching: recent ? Array.from((recent.closest('section') || recent.parentElement).querySelectorAll('button')).map((b) => b.title) : [],
         panel: panel ? {
           top: menu('Top Source'),
           bottom: menu('Bottom Source'),

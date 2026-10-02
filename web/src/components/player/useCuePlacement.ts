@@ -130,8 +130,8 @@ export const useCuePlacement = ({
   // Deliberately not a CSS custom property: var() needs Chrome 49 and the TVs this
   // targets are Chromium 47.
   // filePath is in the deps because the element itself only exists once there is
-  // something to play - before that the early return renders "Select media" and
-  // there is nothing to write to. Keyed on the size alone, the rule was written
+  // something to play - before that the player renders nothing and there is
+  // nothing to write to. Keyed on the size alone, the rule was written
   // at mount into a null ref and then never again, so the bottom subtitle used
   // the browser's default size until the slider was touched. Invisible while the
   // size was 18px every time; obvious the moment the size is remembered.

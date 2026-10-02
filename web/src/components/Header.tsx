@@ -8,9 +8,11 @@ interface HeaderProps {
   onSearchResultSelect: (result: SearchResult) => void;
   sidebarOpen: boolean;
   onToggleSidebar: () => void;
+  /** Close whatever is playing and show Home. */
+  onHome: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onSearchResultSelect, sidebarOpen, onToggleSidebar }) => {
+export const Header: React.FC<HeaderProps> = ({ onSearchResultSelect, sidebarOpen, onToggleSidebar, onHome }) => {
   const [query, setQuery] = useState('');
   const [searchType, setSearchType] = useState<MediaType>(MediaType.ALL);
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -86,13 +88,24 @@ export const Header: React.FC<HeaderProps> = ({ onSearchResultSelect, sidebarOpe
           <PanelLeft size={18} />
         </button>
 
-        {/* bg-blue-600 is the fallback: background-color paints only where the
+        {/* The name is the way Home: Home is where Continue watching lives now.
+            bg-blue-600 is the fallback: background-color paints only where the
             gradient (custom-property based) fails, i.e. on old TV browsers. */}
-        <div className="w-8 h-8 bg-blue-600 bg-gradient-to-br from-blue-500 to-purple-600 rounded-md flex items-center justify-center">
-             <Film className="text-white" size={18} />
-        </div>
-        <h1 className="hidden md:block text-xl font-bold bg-clip-text gradient-text bg-gradient-to-r from-blue-400 to-purple-400">
-          HomeReel
+        <h1 className="flex-none">
+          <button
+            type="button"
+            onClick={onHome}
+            aria-label="Home"
+            title="Home"
+            className="flex items-center space-x-2 rounded-md px-1 py-1 hover:bg-gray-800 focus:outline-none focus:bg-blue-700"
+          >
+            <span className="w-8 h-8 bg-blue-600 bg-gradient-to-br from-blue-500 to-purple-600 rounded-md flex items-center justify-center">
+              <Film className="text-white" size={18} />
+            </span>
+            <span className="hidden md:block text-xl font-bold bg-clip-text gradient-text bg-gradient-to-r from-blue-400 to-purple-400">
+              HomeReel
+            </span>
+          </button>
         </h1>
       </div>
 

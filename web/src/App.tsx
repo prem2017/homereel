@@ -1,24 +1,20 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { AlertTriangle, Loader2, RefreshCw } from 'lucide-react';
+import { Loader2, RefreshCw } from 'lucide-react';
 import { Header } from './components/Header';
 import { FileTree, rowDomId } from './components/FileTree';
 import { MediaPlayer } from './components/MediaPlayer';
+import { Home } from './components/Home';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { fetchFileTree } from './services/api';
 import { FileNode, SearchResult } from './types';
 import { readPref, writePref, PREF } from './utils/prefs';
-import { indexFiles, readProgress, recentlyPlayed } from './utils/resume';
-import { findSiblings, folderOf, isPlayable } from './utils/siblings';
-import { formatTime } from './utils/time';
+import { indexFiles, readProgress } from './utils/resume';
+import { findSiblings, folderOf, isPlayable, nextPlayable } from './utils/siblings';
 
 // Below this the sidebar stops being furniture and becomes a drawer. A phone on
 // the same Wi-Fi is the second most likely client after the TV, and a fixed
 // 250px column on a 360px screen leaves nothing for the film.
 const NARROW_WIDTH = 768;
-
-// How many files to offer picking up again. Enough for a couple of series on the
-// go without pushing the library itself off the screen.
-const CONTINUE_WATCHING = 4;
 
 function App() {
   const [fileTree, setFileTree] = useState<FileNode[]>([]);
@@ -147,11 +143,6 @@ function App() {
   // changes when the library does - not every time a position is written.
   const filesByPath = useMemo(() => indexFiles(fileTree), [fileTree]);
 
-  const recent = useMemo(
-    () => recentlyPlayed(filesByPath, viewing.positions, viewing.durations, CONTINUE_WATCHING, currentFile?.path || null),
-    [filesByPath, viewing, currentFile],
-  );
-
   // Folder-scoped, because that is what a download's landing place means: a
   // subtitle saved into another folder is not this video's business.
   const siblingsWithSaved = useMemo(() => {
@@ -164,18 +155,23 @@ function App() {
     return extra.length > 0 ? [...currentFileSiblings, ...extra] : currentFileSiblings;
   }, [currentFile, currentFileSiblings, savedSubtitles]);
 
-  // The library opened at a file: the sidebar shown if it was hidden (the tree
-  // opens the folders above whatever is playing), and the row brought into view.
-  // A stable identity, because the player is memoized and takes it as a prop.
+  // The library opened at a file or folder: the sidebar shown if it was hidden,
+  // and the tree told to open the folders down to it and focus its row. A fresh
+  // object each time, so asking for the same row twice still moves to it. A
+  // stable identity, because the player is memoized and takes it as a prop.
+  const [reveal, setReveal] = useState<{ path: string } | null>(null);
   const revealInLibrary = useCallback((path: string) => {
     setSidebarOpen(true);
-    window.setTimeout(() => {
-      const row = document.getElementById(rowDomId(path));
-      if (!row) return;
-      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      row.focus();
-    }, 100);
+    setReveal({ path });
   }, []);
+  const browseFolder = useCallback((folder: FileNode) => revealInLibrary(folder.path), [revealInLibrary]);
+
+  // Home is what shows while nothing plays, so going there is closing the file.
+  // The player writes the position it was left at as it lets go of it.
+  const goHome = useCallback(() => {
+    setCurrentFile(null);
+    if (isNarrow) setSidebarOpen(false);
+  }, [isNarrow]);
 
   const handleSearchResultSelect = (result: SearchResult) => {
     handleSelectFile(result);
@@ -210,22 +206,22 @@ function App() {
     : -1;
 
   // Named, not just counted: the player announces what is coming before it goes
-  // there, so the jump at the end of an episode can be stopped.
-  const nextFile = currentIndex >= 0 ? playableSiblings[currentIndex + 1] : undefined;
+  // there, so the jump at the end of an episode can be stopped. At the end of a
+  // season folder it is the next season's first episode (`nextPlayable`).
+  const nextFile = useMemo(
+    () => (currentFile ? nextPlayable(fileTree, currentFile.path) : undefined),
+    [fileTree, currentFile],
+  );
+  const previousFile = currentIndex > 0 ? playableSiblings[currentIndex - 1] : undefined;
 
-  // Autoplay-on-ended and the player's next/previous buttons are the same operation.
-  const playOffset = useCallback((offset: number) => {
-    const target = currentIndex >= 0 ? playableSiblings[currentIndex + offset] : undefined;
-    if (target) handleSelectFile(target);
-  }, [currentIndex, playableSiblings, handleSelectFile]);
-
-  const handleMediaEnded = useCallback(() => playOffset(1), [playOffset]);
-
+  // Autoplay-on-ended and the player's Next button are the same operation.
+  //
   // Stable identities, so React.memo on the player is not inert. Written inline
   // these were a fresh function on every render of App - which now happens every
   // few seconds while a film plays.
-  const handleNext = useCallback(() => playOffset(1), [playOffset]);
-  const handlePrevious = useCallback(() => playOffset(-1), [playOffset]);
+  const handleNext = useCallback(() => { if (nextFile) handleSelectFile(nextFile); }, [nextFile, handleSelectFile]);
+  const handleMediaEnded = handleNext;
+  const handlePrevious = useCallback(() => { if (previousFile) handleSelectFile(previousFile); }, [previousFile, handleSelectFile]);
 
   // Resizing Logic
   const startResizing = (e: React.MouseEvent | React.TouchEvent) => {
@@ -303,6 +299,7 @@ function App() {
         onSearchResultSelect={handleSearchResultSelect}
         sidebarOpen={sidebarOpen}
         onToggleSidebar={toggleSidebar}
+        onHome={goHome}
       />
 
       {/* Global Resize Overlay: Crucial for smooth dragging over iframes/videos */}
@@ -330,49 +327,6 @@ function App() {
           // draggable, and dragging is what this number records.
           style={isNarrow ? undefined : { width: sidebarWidth }}
         >
-          {/* Pick up where you left off. The positions behind this have been
-              recorded all along; until now the only place they showed was a
-              toast after the file was already open.
-
-              What is playing stays in the list, marked the way the tree marks
-              it. Leaving it out was tidier - pressing it does nothing - but it
-              also meant the list said nothing about the film actually on screen,
-              so starting something new looked like it had not been noticed. */}
-          {recent.length > 0 && (
-            <div className="flex-none border-b border-gray-800 pb-2">
-              <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-4 pt-4 pb-2">
-                Continue watching
-              </h2>
-              {recent.map(item => {
-                const playing = item.node.path === currentFile?.path;
-                return (
-                  <button
-                    key={item.node.path}
-                    type="button"
-                    onClick={() => handleSelectFile(item.node)}
-                    title={`${item.node.name} — ${playing ? 'playing now, at' : 'resume at'} ${formatTime(item.position)}`}
-                    className={`relative w-full text-left px-4 py-1.5 cursor-pointer hover:bg-gray-800 focus:outline-none focus:bg-blue-700 focus:text-white ${playing ? 'bg-gray-700 border-l-2 border-blue-500' : ''}`}
-                  >
-                    <span className={`block truncate text-sm ${playing ? 'text-blue-300' : 'text-gray-200'}`}>
-                      {item.node.name}
-                    </span>
-                    <span className="block text-xs text-gray-500">
-                      {formatTime(item.position)}
-                      {item.fraction > 0 ? ` · ${Math.round(item.fraction * 100)}%` : ''}
-                      {playing ? ' · playing' : ''}
-                    </span>
-                    {item.fraction > 0 && (
-                      <span
-                        className="absolute left-0 bottom-0 h-0.5 bg-blue-500"
-                        style={{ width: `${Math.round(item.fraction * 100)}%` }}
-                      />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
           <div className="flex-none flex justify-between items-center px-4 pt-4 mb-2">
             <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Library</h2>
             {/* Picks up files added since the page loaded, without a reload and
@@ -420,6 +374,7 @@ function App() {
               currentFilePath={currentFile?.path || null}
               progress={viewing.progress}
               watched={viewing.watched}
+              reveal={reveal}
             />
           )}
         </div>
@@ -446,32 +401,19 @@ function App() {
             grow a scrollbar, parking the details below the fold. */}
         <div className="flex-1 flex flex-col p-3 md:p-4 overflow-hidden min-w-0 min-h-0">
           <div className="flex-1 min-h-0">
-            {/* A library that failed to load is said here too, not only in the
-                sidebar - a phone hides the sidebar, and "Select media to play"
-                over a library that cannot be read sends people looking for files
-                that the server cannot see. */}
-            {!currentFile && loadError ? (
-              <div role="alert" className="flex items-center justify-center h-full bg-black rounded-lg px-6 py-6 overflow-y-auto">
-                <div className="max-w-lg text-center">
-                  <AlertTriangle size={40} className="mx-auto mb-3 text-amber-400" />
-                  <p className="text-lg font-semibold text-white">HomeReel can't load your library</p>
-                  <p className="mt-2 text-sm text-gray-300 break-words">{loadError}</p>
-                  <p className="mt-2 text-sm text-gray-400">
-                    Check that <code className="text-gray-200">MEDIA_DIR</code> in your{' '}
-                    <code className="text-gray-200">.env</code> points at a folder that exists, then restart the server.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => { if (!loading) loadLibrary(true); }}
-                    className="mt-4 text-sm px-4 py-2 rounded bg-blue-700 text-white hover:bg-blue-600 focus:outline-none focus:bg-blue-500"
-                  >
-                    Try again
-                  </button>
-                </div>
-              </div>
-            ) : (
-            /* A crash in the player stays in the player: the library keeps
-               working, and picking another file tries again. */
+            {/* While nothing plays: where you were, what is next, what arrived.
+                The player stays mounted underneath, empty, so what this session
+                fetched is still known when the next file opens. */}
+            {!currentFile && (
+              <Home
+                tree={fileTree} filesByPath={filesByPath} loading={loading} loadError={loadError}
+                onRetry={() => { if (!loading) loadLibrary(true); }}
+                positions={viewing.positions} durations={viewing.durations} watched={viewing.watched}
+                onPlay={handleSelectFile} onBrowse={browseFolder}
+              />
+            )}
+            {/* A crash in the player stays in the player: the library keeps
+                working, and picking another file tries again. */}
             <ErrorBoundary what="player" resetKey={currentFile?.path || null}>
               <MediaPlayer
                 filePath={currentFile?.path || null}
@@ -484,11 +426,10 @@ function App() {
                 autoPlay={true}
                 onNext={nextFile ? handleNext : undefined}
                 nextName={nextFile?.name || null}
-                onPrevious={currentIndex > 0 ? handlePrevious : undefined}
+                onPrevious={previousFile ? handlePrevious : undefined}
                 onReveal={revealInLibrary}
               />
             </ErrorBoundary>
-            )}
           </div>
 
           {currentFile && (

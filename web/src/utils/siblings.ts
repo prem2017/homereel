@@ -1,5 +1,6 @@
 import type { FileNode } from '../types';
 import { subtitleMatchesVideo } from './subtitleNaming';
+import { seasonOf } from './mediaLabel';
 
 /** The folder a path sits in, trailing slash included, `''` at the library root. */
 export const folderOf = (filePath: string) => filePath.slice(0, filePath.lastIndexOf('/') + 1);
@@ -99,4 +100,44 @@ export const subtitlesFor = (
     && isSubtitleFile(s.name)
     && (subtitleMatchesVideo(s.name, fileName)
       || (soleVideo && folderOf(s.path) !== here)));
+};
+
+/** The children of the folder at `folderPath` ('' is the library root), or null. */
+export const childrenOf = (nodes: FileNode[], folderPath: string): FileNode[] | null => {
+  if (folderPath === '') return nodes;
+  for (const node of nodes) {
+    if (node.type !== 'directory' || !node.children) continue;
+    if (node.path === folderPath) return node.children;
+    if (folderPath.indexOf(`${node.path}/`) === 0) return childrenOf(node.children, folderPath);
+  }
+  return null;
+};
+
+/**
+ * What plays after `path`: the next playable file in its folder, or - when
+ * that folder is a season ("Season 1", "S01") and has run out - the first one
+ * in the next season folder beside it. The last episode of Season 1 used to end
+ * the evening with Season 2 sitting next to it.
+ *
+ * Playable is what the library lists (`isPlayable`), so Next never stops on an
+ * .nfo. Undefined at the end of the line.
+ */
+export const nextPlayable = (nodes: FileNode[], path: string): FileNode | undefined => {
+  const folder = folderOf(path).replace(/\/$/, '');
+  const here = (childrenOf(nodes, folder) || []).filter(isPlayable);
+  const at = here.findIndex(n => n.path === path);
+  if (at === -1) return undefined;
+  if (at + 1 < here.length) return here[at + 1];
+
+  const season = seasonOf(folder.slice(folder.lastIndexOf('/') + 1));
+  if (season === null) return undefined;
+  const parent = folder.lastIndexOf('/') === -1 ? '' : folder.slice(0, folder.lastIndexOf('/'));
+  const later = (childrenOf(nodes, parent) || [])
+    .filter(n => n.type === 'directory' && (seasonOf(n.name) || 0) > season)
+    .sort((a, b) => (seasonOf(a.name) || 0) - (seasonOf(b.name) || 0));
+  for (const next of later) {
+    const first = (next.children || []).filter(isPlayable)[0];
+    if (first) return first;
+  }
+  return undefined;
 };

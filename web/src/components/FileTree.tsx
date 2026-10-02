@@ -13,6 +13,9 @@ interface FileTreeProps {
   progress?: Map<string, number>;
   /** Files played to the end, for the tick on the row. */
   watched?: Map<string, number>;
+  /** Open the folders down to this path - and the folder itself, if it is one -
+   *  then bring its row into view and focus it. A new object asks again. */
+  reveal?: { path: string } | null;
 }
 
 /**
@@ -195,7 +198,11 @@ export const filterTree = (nodes: FileNode[]): FileNode[] => {
     .filter((node): node is FileNode => node !== null);
 };
 
-export const FileTree: React.FC<FileTreeProps> = ({ nodes, onSelectFile, currentFilePath, progress, watched }) => {
+/** Whether `path` is a folder somewhere in `nodes`. */
+const isFolder = (nodes: FileNode[], path: string): boolean => nodes.some(node =>
+  node.type === 'directory' && (node.path === path || (path.indexOf(`${node.path}/`) === 0 && isFolder(node.children || [], path))));
+
+export const FileTree: React.FC<FileTreeProps> = ({ nodes, onSelectFile, currentFilePath, progress, watched, reveal }) => {
   const filteredNodes = React.useMemo(() => filterTree(nodes), [nodes]);
   const [openPaths, setOpenPaths] = useState<Set<string>>(
     () => new Set(openFolderStore.entries().map(([path]) => path)),
@@ -236,6 +243,28 @@ export const FileTree: React.FC<FileTreeProps> = ({ nodes, onSelectFile, current
       return added ? next : prev;
     });
   }, [currentFilePath]);
+
+  // Asked for from outside - a Home tile, "Show in library". Handled once per
+  // request: the object is remembered, so the sidebar closing and opening again
+  // does not jump back to an old one.
+  const handledRevealRef = useRef<{ path: string } | null>(null);
+  useEffect(() => {
+    if (!reveal || handledRevealRef.current === reveal) return;
+    handledRevealRef.current = reveal;
+    const wanted = ancestorPaths(reveal.path);
+    if (isFolder(filteredNodes, reveal.path)) wanted.push(reveal.path);
+    setOpenPaths(prev => {
+      const missing = wanted.filter(path => !prev.has(path));
+      return missing.length === 0 ? prev : new Set([...Array.from(prev), ...missing]);
+    });
+    const timer = window.setTimeout(() => {
+      const row = document.getElementById(rowDomId(reveal.path));
+      if (!row) return;
+      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      row.focus();
+    }, 60);
+    return () => window.clearTimeout(timer);
+  }, [reveal, filteredNodes]);
 
   const toggleOpen = useCallback((path: string) => {
     setOpenPaths(prev => {
