@@ -8,7 +8,8 @@
 // Env: RUN_MP_WORK (default $TMPDIR/run-media-player), RUN_MP_PORT (default: any
 // free port), RUN_MP_REBUILD=1 (force a frontend build), RUN_MP_CHROMIUM (a
 // Chromium to launch instead of downloading Playwright's), RUN_MP_FFMPEG (default
-// `ffmpeg` on PATH).
+// `ffmpeg` on PATH), RUN_MP_MEDIA (a library of your own to use instead of the
+// generated fixtures; copied, never touched).
 import { spawn, spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import fs from 'node:fs';
@@ -49,8 +50,9 @@ const run = (cmd, args, options = {}) => {
 // failed with a codec error. Chromium reads the container from the bytes, so the
 // .mp4 names play; they stay because real libraries are named that way.
 const ensureMedia = () => {
-  const pristine = path.join(WORK, FIXTURES);
-  if (!fs.existsSync(path.join(pristine, '.done'))) {
+  const own = process.env.RUN_MP_MEDIA ? path.resolve(process.env.RUN_MP_MEDIA) : null;
+  const pristine = own || path.join(WORK, FIXTURES);
+  if (!own && !fs.existsSync(path.join(pristine, '.done'))) {
     say('generating fixture media with ffmpeg (one-time)');
     fs.rmSync(pristine, { recursive: true, force: true });
     const at = (rel) => {

@@ -6,23 +6,33 @@ accounts, no cloud, no uploading anything.
 
 Point it at a folder, run one command, open the printed link on your TV.
 
-- Browse your media folder as a tree, or search it
-- Video and audio playback with keyboard controls
-- Subtitles, including `.srt` files (converted on the fly) and dual top/bottom tracks
+- A Home screen with what you were watching, the next episode, and what is new
+- Your folders as a library with readable names (*Episode 2 · S01E02*, not
+  `Le.Bureau.des.Legendes.S01E02.1080p.mp4`), and a search you can use from the keyboard
+- Video and audio playback with keyboard and remote controls, and a Now playing
+  view for music
+- Subtitles, including `.srt` files (converted on the fly), two at once — top and
+  bottom — and your languages remembered
 - Optionally download missing subtitles by language — see [Subtitles](#subtitles)
+- Remembers where you stopped and what you finished, and carries on into the next
+  episode, or the next season
+- Works on a phone too, with lock-screen controls and Add to Home Screen
+- Large text for reading from the sofa
 - Seeking works properly on large files, via HTTP range requests
 - Built for old smart-TV browsers, which are usually years behind desktop Chrome
 
 ## Screenshots
 
-| Library | Two subtitles at once |
+| Home | Two subtitles at once |
 |---|---|
-| ![File browser](docs/images/library.png) | ![French subtitle on top, English on the bottom](docs/images/dual-subtitles-demo.png) |
+| ![Home: Continue watching, Recently added, and the library](docs/images/home.png) | ![French subtitle on top, English on the bottom](docs/images/dual-subtitles-demo.png) |
 
-The right-hand shot is *Big Buck Bunny* (Blender Foundation, CC BY 3.0) with a
-French subtitle pinned to the top and an English one to the bottom — the
-player can show two languages at once, one in each slot. See
+On the right, a French subtitle pinned to the top and an English one to the
+bottom — the player can show two languages at once, one in each slot. See
 [Subtitles](#subtitles) for the panel that sets this up.
+
+The screenshots were taken with the project's test driver against a demo library
+of generated clips, named after the Blender open movies.
 
 ## What it does not do
 
@@ -107,6 +117,34 @@ Leave the terminal running; closing it stops the server.
 
 If the page will not load, see [Troubleshooting](#troubleshooting).
 
+Once it is open:
+
+- **Home** shows what you were in the middle of, the next episode of what you
+  finished, what was added lately, and your top-level folders. The **HomeReel**
+  name at the top left always brings you back to it.
+- **Aa** at the top right makes all the text bigger — 125% or 150% — for reading
+  from across the room. The TV remembers it; your laptop does not change.
+- The remote's **play/pause** button works, and so does its pointer: everything is
+  a button you can point at. With a keyboard, `?` (or the keyboard button in the
+  player) lists every shortcut.
+- A file the TV cannot play says why and what would fix it, with buttons to try
+  again or skip to the next one. Files whose names say **HEVC** or **MKV** — the
+  two things TVs most often refuse — carry an amber mark in the library.
+
+## On a phone
+
+<img src="docs/images/phone.png" width="260" align="right" alt="HomeReel on a phone: the episode playing, its details, and the next episodes">
+
+Open the same address in your phone's browser. The controls sit on the picture,
+the library is behind the button at the top left, and under the film you get its
+details, the next episodes and whatever else you were watching.
+
+Use your browser's **Add to Home Screen** and HomeReel opens full screen, like an
+app. While music plays, the lock screen shows the track and album and has play,
+pause, next and previous.
+
+<br clear="right">
+
 ## Subtitles
 
 Two separate things here, and only the second one needs any setup.
@@ -114,8 +152,8 @@ Two separate things here, and only the second one needs any setup.
 ![The subtitle panel: top/bottom source, sync, and the download tools](docs/images/subtitle-panel.png)
 
 **Subtitle files already sitting next to your videos** just work. Any `.srt` or
-`.vtt` in the same folder is listed in the player's subtitle menus, and one
-matching the video's name is picked automatically. `.srt` is converted on the
+`.vtt` in the same folder is listed in the player's subtitle menus, and one in
+your language — or else one named like the video — is picked automatically. `.srt` is converted on the
 fly. Nothing to configure, no account, no internet.
 
 A `Subs/` folder is read as well — the layout most downloads arrive in:
@@ -139,21 +177,28 @@ API key. Without one the menus still list your local files exactly as above —
 only the "search online" part is missing. Nobody should have to register for
 anything to watch a file off their own disk.
 
-With a key, the player's subtitle panel gains a **Get subtitles** section: pick a
+With a key, the player's subtitle panel gains a **Find more online** section: pick a
 language, press **Download**, and the best match is fetched and loaded. Press
-**More** instead to see the candidates first and choose one yourself.
+**Browse** instead to see the candidates first and choose one yourself.
 
 Downloading and displaying are two separate steps, which is why there are two
 sets of menus:
 
 | Menu | What it does |
 |---|---|
-| **Get subtitles** | Fetches a subtitle file into the video's folder. |
-| **Top Source** / **Bottom Source** | Chooses which file to show, and where. Lists the subtitles belonging to the video you are playing — what you downloaded and what was already there. In a season folder that means this episode's, not the whole series'. |
+| **Get subtitles** (under Find more online) | Fetches a subtitle file into the video's folder. |
+| **Top** / **Bottom** | Chooses which file to show, and where. Lists the subtitles belonging to the video you are playing — what you downloaded and what was already there, each saying what it is (*English · named like the film*, *French · Subs/French.srt*). In a season folder that means this episode's, not the whole series'. |
 
 So you can hold several subtitles for one film and switch between them without
 downloading anything again, or put two languages on screen at once — one at the
-top, one at the bottom.
+top, one at the bottom. **Swap top and bottom** trades them over, and each slot has
+its own size and sync.
+
+The languages you pick are remembered for every film, not just this one: open a
+new episode and the bottom slot starts in your language — and the top one in
+yours, if you watch with two. A choice you made for a particular film still wins.
+On a keyboard, `c` switches the bottom subtitle off and back on, and `t` the top
+one.
 
 **If the first one is a poor match, just press Download again.** It skips past
 what you already have and takes the next-best candidate, so you never pay twice
@@ -177,15 +222,15 @@ first — and deleting one you did not like is enough to make the app forget it.
 
 ### When a subtitle runs early or late
 
-Under each **Source** menu is a **Sync** row:
+Under each slot's menu is a **Sync** row:
 
 ```
-Sync   ◀    +1.5s    ▶
+Sync   ‹ Earlier    +1.5s    Later ›
 ```
 
-`◀` shows the subtitles earlier, `▶` later, half a second at a time. The middle
-button is the current shift and resets it. On a keyboard, `g` and `h` do the same
-in finer 0.1s steps.
+**Earlier** shows the subtitles earlier, **Later** later, half a second at a time.
+The middle button is the current shift and resets it. On a keyboard, `g` and `h` do
+the same in finer 0.1s steps.
 
 Each subtitle has its own shift, and it is **remembered** — come back to the same
 film tomorrow and it is still lined up. Deleting the subtitle or resetting it to
@@ -317,8 +362,8 @@ https://sub-scene.com/subtitle/3358444
                                ^^^^^^^ this is the ID
 ```
 
-In the player's subtitle panel, paste the ID into the **Subscene ID** box (see
-the screenshot above). From the fifth character on, the app asks the site
+In the player's subtitle panel, under **Find more online**, paste the ID into the
+**Subscene ID** box (see the screenshot above). From the fifth character on, the app asks the site
 whether that ID is real, and tells you what it found:
 
 | The box is | It means |
@@ -404,6 +449,9 @@ npm test            # both test suites (needs Node 20.19+ or 22.12+)
 npm run serve       # run the server alone, against an existing build
 ```
 
+GitHub Actions runs the tests, the type check and the build on every push
+(`.github/workflows/ci.yml`).
+
 ## Configuration
 
 All settings live in `.env` (copied from `.env.example`, and git-ignored so
@@ -434,15 +482,18 @@ homereel/
 ├── 1_run                 start the app
 ├── x_stop                stop it, either runtime
 ├── web/                  React + TypeScript interface
+│   ├── public/           icons and the web app manifest
 │   ├── src/
-│   │   ├── components/   FileTree, Header, MediaPlayer, ErrorBoundary
+│   │   ├── components/   Home, FileTree, Header, SearchBox, MediaPlayer, ...
+│   │   │   └── player/   the player's controls, subtitle panel and hooks
 │   │   ├── services/     API client
-│   │   ├── utils/        subtitle parsing, time formatting
+│   │   ├── utils/        names, subtitles, what the app remembers
 │   │   └── main.tsx      entry point
 │   ├── index.html
 │   └── vite.config.ts    build + dev proxy config
 ├── server/               Express API and static file server
-│   ├── index.js          file scanning, search, range streaming
+│   ├── index.js          the API, range streaming, the request log
+│   ├── library.js        file scanning, what each name says, search
 │   ├── mediaPath.js      the path-containment guard - see Security
 │   └── subtitles/        search, download, and archive handling
 ├── docker/               Container build
@@ -475,9 +526,14 @@ On macOS, System Settings → Network → Firewall → Options, and allow incomi
 connections for Node.
 
 **A file shows in the list but will not play.**
-Your TV's browser cannot decode it. See [What it does not do](#what-it-does-not-do).
-Test the same file in your desktop browser: if it plays there but not on the TV,
-it is a codec limitation on the TV, not a bug here.
+Your TV's browser cannot decode it, and the player says what would fix it. See
+[What it does not do](#what-it-does-not-do). Test the same file in your desktop
+browser: if it plays there but not on the TV, it is a codec limitation on the TV,
+not a bug here.
+
+**A file I just copied in does not show up.**
+The library is read again at most once a minute, so a new file can take that long
+to appear. Press the rescan button beside **Library** to look straight away.
 
 **`MEDIA_DIR points at a folder that does not exist`.**
 Re-run `./0_setup`, or edit `.env` directly. The path must be absolute

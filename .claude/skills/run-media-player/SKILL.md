@@ -29,6 +29,10 @@ export RUN_MP_FFMPEG=/path/to/ffmpeg               # default: ffmpeg on PATH
 The fixtures are VP8/Vorbis WebM (under their `.mp4` names), which every Chromium
 plays, so a build without H.264 works as well as Playwright's own.
 
+`RUN_MP_MEDIA=/path/to/library` drives the app against a library of your own
+instead (copied fresh each run, never written to) - the README screenshots were
+taken that way, from a demo library of generated clips.
+
 ## Setup
 
 ```bash
