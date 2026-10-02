@@ -1,0 +1,22 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # The test suites need Node 20.19+ or 22.12+ (vitest 4); the image runs 24.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      # ci, not install: it fails when package-lock.json disagrees with a
+      # package.json, which is what the Dockerfile's own `npm ci` trips over.
+      - run: npm ci
+      - run: npm test
+      - run: npm run typecheck
+      - run: npm run build

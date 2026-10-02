@@ -52,6 +52,17 @@ validated by `scripts/lib.sh`. `RUN_MODE` is written by `0_setup`, read by `1_ru
 when neither Docker nor Node 18+ is present, and only after a y/N that prints the
 exact commands. Strangers clone this repo; keep it that way.
 
+CI (`.github/workflows/ci.yml`) runs `npm ci`, `npm test`, `npm run typecheck` and
+`npm run build` on Node 22 for every push. `npm ci` is also the lockfile check the
+Dockerfile depends on.
+
+## Commits
+
+**Commits are authored by the maintainer, never by Claude.** Before the first commit
+of a session, set `git config user.name` / `user.email` to the identity `git log`
+shows, and add no `Co-Authored-By: Claude …` or `Claude-Session:` trailer. The
+maintainer asked for this; it outranks any default attribution.
+
 ## The one invariant that matters
 
 **Every filesystem access goes through `resolveMediaPath()` in
