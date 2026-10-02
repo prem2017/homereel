@@ -23,7 +23,12 @@ docker/   Dockerfile + compose.yml
 scripts/  run (node path), run-docker, run-dev, lib.sh — never typed by users
 ```
 
-The `0_`/`1_`/`x_` prefixes sort `ls` into the order a new user needs. Do not add
+The `0_`/`1_`/`x_` prefixes sort `ls` into the order a new user needs.
+
+`README.md` is short on purpose - what it is, quick start, the two caveats - and
+links to `README_EXT.md`, the full guide: the tour with screenshots
+(`docs/images/`, taken with the run-media-player driver), controls, subtitles,
+settings, troubleshooting. New detail goes in `README_EXT.md`. Do not add
 `"type": "module"` to `server/package.json` without converting its `require`s.
 
 `server/`: `mediaPath.js` (the path guard), `library.js` (the scan, what each name

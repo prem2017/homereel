@@ -30,8 +30,9 @@ The fixtures are VP8/Vorbis WebM (under their `.mp4` names), which every Chromiu
 plays, so a build without H.264 works as well as Playwright's own.
 
 `RUN_MP_MEDIA=/path/to/library` drives the app against a library of your own
-instead (copied fresh each run, never written to) - the README screenshots were
-taken that way, from a demo library of generated clips.
+instead (copied fresh each run, never written to) - the screenshots in
+`README_EXT.md` (`docs/images/`) were taken that way, from a demo library of
+generated clips, at `viewport 1280 800` (the phone at `390 844`).
 
 ## Setup
 
@@ -155,7 +156,7 @@ node --test server/subtitles/store.test.js
 npm test && npm run typecheck
 ```
 
-Both suites pass (95 server tests, 94 web tests on 2026-09-14) and typecheck prints no errors.
+Both suites pass (106 server tests, 156 web tests on 2026-10-02) and typecheck prints no errors.
 
 ## Gotchas
 
