@@ -1,20 +1,43 @@
+/**
+ * What a media file's name says, read on the server by the same release parser
+ * the subtitle naming uses (`describeMedia` in server/library.js). For showing
+ * only: the path is the identifier everywhere. Keys are present when known.
+ */
+export interface MediaInfo {
+  /** The film's or show's title, or a song's without its track number. */
+  title: string;
+  year?: number;
+  season?: number;
+  episode?: number;
+  /** "Pilot", out of "Show.S01E01.Pilot.720p". */
+  episodeTitle?: string;
+  resolution?: string;
+  source?: string;
+  /** As the parser spells it: "x264", "h265". */
+  codec?: string;
+  /** A song's number on its album. */
+  track?: number;
+}
+
 export interface FileNode {
   name: string;
   path: string;
   type: 'file' | 'directory';
   children?: FileNode[];
   mimeType?: string; // e.g., 'video/mp4', 'audio/mp3'
+  /** Bytes, and the last modification in ms since the epoch. Files only. */
+  size?: number;
+  mtime?: number;
+  /** Media files only. */
+  info?: MediaInfo;
+  /** A poster or cover beside it, as a media path: the folder's, or the file's own. */
+  art?: string;
 }
 
-export interface SearchResult {
-  name: string;
-  path: string;
-  type: 'file' | 'directory';
-  // /api/search returns whole file nodes, so the real type detected by the server
-  // is already on the wire. Guessing it from the extension instead sends .m4a and
-  // .flac down the <video> branch and renders a black box.
-  mimeType?: string;
-}
+// /api/search returns whole file nodes, so the real type detected by the server
+// is already on the wire. Guessing it from the extension instead sends .m4a and
+// .flac down the <video> branch and renders a black box.
+export type SearchResult = FileNode;
 
 // A language offered in the subtitle menus. The list comes from the server
 // because SUBTITLE_LANGUAGES in .env can replace it, so there is one source of

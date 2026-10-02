@@ -5,7 +5,8 @@ const path = require('path');
 const { pipeline } = require('stream');
 const mime = require('mime-types');
 
-const { MEDIA_ROOT, resolveMediaPath, toRelative } = require('./mediaPath');
+const { MEDIA_ROOT, resolveMediaPath } = require('./mediaPath');
+const { libraryTree, forgetLibrary, searchTree } = require('./library');
 const { searchSubtitles, checkReference, downloadSubtitle } = require('./subtitles');
 const { decodeSubtitle } = require('./subtitles/store');
 const subtitleConfig = require('./subtitles/config');
@@ -16,15 +17,6 @@ const PORT = process.env.PORT || 5000;
 
 // Where the built frontend lives. Docker overrides this; locally it is web/dist.
 const WEB_DIST = path.resolve(process.env.WEB_DIST || path.join(__dirname, '..', 'web', 'dist'));
-
-// Guards against a symlink loop inside the media directory turning the
-// recursive scan into unbounded recursion.
-// ponytail: fixed depth cap (ceiling: nesting <= 25 dirs). Upgrade: track
-// visited inodes via fs.realpathSync if anyone hits the limit legitimately.
-const MAX_DEPTH = 25;
-
-// How a folder is listed: "Episode 2" before "Episode 10", case ignored.
-const NAME_ORDER = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
 
 app.set('trust proxy', true);
 app.use(express.json());
@@ -68,121 +60,27 @@ app.post('/api/log', (req, res) => {
     res.sendStatus(200);
 });
 
-// 1. Recursive Directory Scanner
-// ponytail: rescans the whole tree on every /api/files and /api/search call
-// (ceiling: ~5k files feels instant, ~50k noticeably blocks the event loop).
-// Upgrade: cache the tree and invalidate with fs.watch when it gets slow.
-const getFileTree = (dir, depth = 0) => {
-    if (depth > MAX_DEPTH) return [];
-
-    const results = [];
-    // Sorted: readdir hands back byte order - "Episode 10" before "Episode 2",
-    // every capital before every small letter - and Next and autoplay step
-    // through this list in the order it is in.
-    const entries = fs.readdirSync(dir, { withFileTypes: true })
-        .sort((a, b) => NAME_ORDER.compare(a.name, b.name));
-
-    entries.forEach((entry) => {
-        // Skip hidden files
-        if (entry.name.startsWith('.')) return;
-
-        const filePath = path.join(dir, entry.name);
-        let stat;
-        try {
-            // stat() follows symlinks, so a symlinked media folder still works.
-            stat = fs.statSync(filePath);
-        } catch (e) {
-            // Broken symlink or a file we lack permission to read - skip it
-            // rather than failing the entire listing.
-            return;
-        }
-
-        if (stat.isDirectory()) {
-            results.push({
-                name: entry.name,
-                path: toRelative(filePath),
-                type: 'directory',
-                children: getFileTree(filePath, depth + 1)
-            });
-        } else if (stat.isFile()) {
-            results.push({
-                name: entry.name,
-                path: toRelative(filePath),
-                type: 'file',
-                mimeType: mime.lookup(filePath) || 'application/octet-stream'
-            });
-        }
-    });
-    return results;
-};
-
-// 2. Search Helper
-//
-// Release names spell a space as "." or "_" and titles carry accents, so text is
-// compared as words: accents off, case folded, anything that is not a letter,
-// digit or combining mark read as a space. Only the Latin combining accents
-// (U+0300-036F) come off - Devanagari vowel signs are marks too, and dropping
-// those would change the word.
-const searchKey = (text) => text
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}\p{M}]+/gu, ' ')
-    .trim();
-
-// Every word of the query must appear somewhere in the file's path, folder names
-// included, so "breaking bad s01e02" finds Breaking Bad/S01E02.mkv.
-const searchTree = (nodes, query, type) => {
-    const words = searchKey(query).split(' ').filter(Boolean);
-    const results = [];
-    if (words.length === 0) return results;
-
-    const visit = (list) => {
-        for (const node of list) {
-            if (node.type === 'file') {
-                const isVideo = node.mimeType?.startsWith('video');
-                const isAudio = node.mimeType?.startsWith('audio');
-
-                // "All" means every kind of media, not every file on disk. Selecting
-                // a search hit starts playing it, and a subtitle - which now sits
-                // next to every video that has one - is not something to play.
-                const wanted = (type === 'all' && (isVideo || isAudio)) ||
-                    (type === 'video' && isVideo) ||
-                    (type === 'audio' && isAudio);
-
-                if (wanted) {
-                    const key = searchKey(node.path);
-                    if (words.every((word) => key.includes(word))) results.push(node);
-                }
-            }
-            if (node.children) visit(node.children);
-        }
-    };
-
-    visit(nodes);
-    return results;
-};
-
-// API: Get Files
+// API: Get Files. `fresh=1` (the rescan button) scans again rather than
+// answering from the last scan - see libraryTree.
 app.get('/api/files', (req, res) => {
     try {
         if (!fs.existsSync(MEDIA_ROOT)) {
+            forgetLibrary();
             return res.status(500).json({ error: `Media directory not found: ${MEDIA_ROOT}` });
         }
-        res.json(getFileTree(MEDIA_ROOT));
+        res.json(libraryTree({ fresh: req.query.fresh === '1' }));
     } catch (e) {
         console.error(e);
         res.status(500).json({ error: 'Failed to scan files' });
     }
 });
 
-// API: Search
+// API: Search, over the same scan the library was listed from.
 app.get('/api/search', (req, res) => {
     try {
         const query = typeof req.query.q === 'string' ? req.query.q : '';
         const type = typeof req.query.type === 'string' ? req.query.type : 'all';
-        const tree = getFileTree(MEDIA_ROOT);
-        res.json(searchTree(tree, query, type));
+        res.json(searchTree(libraryTree(), query, type));
     } catch (e) {
         console.error(e);
         res.status(500).json({ error: 'Search failed' });
@@ -399,6 +297,8 @@ app.post('/api/subtitles/download', async (req, res) => {
         const saved = await downloadSubtitle({
             videoRelPath: videoPath, language: language || null, provider, ref,
         });
+        // The folder changed under the cached scan.
+        forgetLibrary();
         res.json(saved);
     } catch (e) {
         console.error(`Subtitle download failed: ${e.message}`);

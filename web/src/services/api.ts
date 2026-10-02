@@ -18,8 +18,10 @@ const readError = async (response: Response): Promise<string> => {
   return `Server responded with ${response.status} ${response.statusText}`;
 };
 
-export const fetchFileTree = async (): Promise<FileNode[]> => {
-  const response = await fetch(`${API_BASE_URL}/files`);
+// The server answers from its last scan, at most a minute old; `fresh` (the
+// rescan button) makes it look at the disk again.
+export const fetchFileTree = async (fresh = false): Promise<FileNode[]> => {
+  const response = await fetch(`${API_BASE_URL}/files${fresh ? '?fresh=1' : ''}`);
   if (!response.ok) throw new Error(await readError(response));
   return await response.json();
 };

@@ -98,9 +98,10 @@ function App() {
   // at load, when the rescan button is pressed, and when search turns up a file
   // the tree has never heard of - search reads the disk, the tree was read once.
   // Global error reporting is registered in main.tsx, before the first render.
-  const loadLibrary = useCallback(() => {
+  // `fresh` asks the server to scan again rather than answer from its last scan.
+  const loadLibrary = useCallback((fresh = false) => {
     setLoading(true);
-    return fetchFileTree().then(data => {
+    return fetchFileTree(fresh).then(data => {
       setFileTree(data);
       setLoadError(null);
     }).catch((err: Error) => {
@@ -181,13 +182,7 @@ function App() {
   }, []);
 
   const handleSearchResultSelect = (result: SearchResult) => {
-    const fileNode: FileNode = {
-      name: result.name,
-      path: result.path,
-      type: 'file',
-      mimeType: result.mimeType
-    };
-    handleSelectFile(fileNode);
+    handleSelectFile(result);
 
     const reveal = () => setTimeout(() => {
       document.getElementById(rowDomId(result.path))
@@ -389,7 +384,7 @@ function App() {
                 disabled button drops focus, which strands a remote. */}
             <button
               type="button"
-              onClick={() => { if (!loading) loadLibrary(); }}
+              onClick={() => { if (!loading) loadLibrary(true); }}
               aria-label="Rescan media folder"
               title="Rescan media folder"
               className="p-1 rounded text-gray-500 hover:text-white hover:bg-gray-800 focus:outline-none focus:bg-blue-700 focus:text-white"
@@ -470,7 +465,7 @@ function App() {
                   </p>
                   <button
                     type="button"
-                    onClick={() => { if (!loading) loadLibrary(); }}
+                    onClick={() => { if (!loading) loadLibrary(true); }}
                     className="mt-4 text-sm px-4 py-2 rounded bg-blue-700 text-white hover:bg-blue-600 focus:outline-none focus:bg-blue-500"
                   >
                     Try again

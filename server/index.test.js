@@ -207,3 +207,11 @@ test('logs a stream once per file a client opens, not once per seek', async () =
     assert.strictEqual(new Set(agentLines.map((line) => line.replace(/^\[[^\]]*\] /, ''))).size, agentLines.length);
     assert.ok(lines().filter((line) => line.includes('GET /api/')).every((line) => !line.includes('Device:')));
 });
+
+test('lists a file added after the last scan once asked to look again', async () => {
+    await get('/api/files');
+    put('Fresh/Arrived.mp4');
+    const names = async (route) => JSON.stringify(await (await get(route)).json());
+    assert.ok(!(await names('/api/files')).includes('Arrived.mp4'), 'answered from the last scan');
+    assert.ok((await names('/api/files?fresh=1')).includes('Arrived.mp4'));
+});

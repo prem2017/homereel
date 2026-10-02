@@ -26,7 +26,8 @@ scripts/  run (node path), run-docker, run-dev, lib.sh — never typed by users
 The `0_`/`1_`/`x_` prefixes sort `ls` into the order a new user needs. Do not add
 `"type": "module"` to `server/package.json` without converting its `require`s.
 
-`server/`: `mediaPath.js` (the path guard), `subtitles/` — `hash.js` (moviehash),
+`server/`: `mediaPath.js` (the path guard), `library.js` (the scan, what each name
+says, artwork, the one-minute cache, search), `subtitles/` — `hash.js` (moviehash),
 `naming.js` (release parsing, ranking), `store.js` (the only writer to the media
 folder), `archive.js` (ZIP), `providers/` (one module per source).
 
@@ -196,14 +197,21 @@ SD_Au-Service-De-La-France-S01E01_fr3.srt     resolution omitted when unknown
   subtitle panel is open, so dismissing it does not also pause. Escape order: help
   sheet → subtitle panel → fullscreen.
 - **The library lists media only** (`filterTree` in `FileTree.tsx`; `searchTree` in
-  `server/index.js` applies the same rule to `all`). `/api/files` still returns
+  `server/library.js` applies the same rule to `all`). `/api/files` still returns
   subtitles: `findSiblings` reads the unfiltered tree to fill the Source menus, and
   handles files at the library root (a flat top-level array).
 - **Search** requires every word of the query in the file's path, compared without
   accents or punctuation (`searchKey`), so folder names and `Le.Bureau.des.Legendes`
   match. Listings are sorted with a numeric collator (Episode 2 before Episode 10).
 - **The tree is fetched at load, by the rescan button, and when a search hit is not
-  in it** (`loadLibrary`). A rescan keeps the current tree on screen. The player's
+  in it** (`loadLibrary`). The server answers from its last scan, at most a minute
+  old (`libraryTree`); the rescan button asks for `?fresh=1`, and a subtitle download
+  clears the cache. Search reads the same scan.
+- **A file node says what its name means**: `size`, `mtime`, and for media `info`
+  (`describeMedia`: title, year, season, episode, episode title, resolution, source,
+  codec, or a song's track number) plus `art` (`poster`/`folder`/`cover.jpg` for a
+  folder, `<name>-poster.jpg` for a file). The client shows them through
+  `utils/mediaLabel.ts`; paths, row ids and search keep the raw name. A rescan keeps the current tree on screen. The player's
   siblings are a `useMemo` over the tree, so a rescan reaches its menus and Next.
 - `playableSiblings` in `App.tsx` uses `isPlayable`: Next/Previous step only through
   what the library lists, never a release folder's `.nfo`/`.txt`.
@@ -374,8 +382,9 @@ need an account to watch their own files.
   (npm spawns Vite as a grandchild).
 - `scripts/run` rebuilds only when `web/dist/index.html` is missing or older than
   `web/src`, `web/index.html` or `web/vite.config.ts`.
-- The file scan is synchronous and reruns on every `/api/files` and `/api/search` —
-  fine for thousands of files, blocks well before 50k (`ponytail:` in `server/index.js`).
+- The file scan is synchronous, cached for a minute and shared by `/api/files` and
+  `/api/search` — fine for thousands of files, blocks well before 50k (`ponytail:` in
+  `server/library.js`).
 - `/api/stream` uses `sendFile()` → `stream.pipeline()`. Never `.pipe(res)`: it leaks
   one fd per aborted request, i.e. per seek.
 - **`video.play()` goes through `safePlay()`.** Before Chrome 50 it returned
