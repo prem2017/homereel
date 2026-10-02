@@ -45,13 +45,9 @@ function App() {
   }, []);
 
   // Resizable Sidebar State
-  // Remembered between visits; ~13% of the window, minimum 200px, the first time.
-  const [sidebarWidth, setSidebarWidth] = useState(() => {
-    const fallback = typeof window !== 'undefined'
-      ? Math.max(200, window.innerWidth * 0.13)
-      : 250;
-    return readPref(PREF.sidebarWidth, fallback);
-  });
+  // Remembered between visits; 280px the first time, wide enough for "Episode 2"
+  // and its S01E02 marker side by side.
+  const [sidebarWidth, setSidebarWidth] = useState(() => readPref(PREF.sidebarWidth, 280));
 
   // On a phone the sidebar is a drawer over the player rather than a column
   // beside it, so it starts closed there whatever was last chosen on a desktop -
@@ -143,17 +139,17 @@ function App() {
   // The cost of that is a re-render of App every five seconds during playback.
   // It is paid for by `React.memo` on the player and by the file rows, which
   // take a number rather than the map and so re-render only where it changed.
-  const [watched, setWatched] = useState(() => readProgress());
-  useEffect(() => { setWatched(readProgress()); }, [currentFile?.path]);
-  const handleProgress = useCallback(() => setWatched(readProgress()), []);
+  const [viewing, setViewing] = useState(() => readProgress());
+  useEffect(() => { setViewing(readProgress()); }, [currentFile?.path]);
+  const handleProgress = useCallback(() => setViewing(readProgress()), []);
 
   // Walking the whole tree is the expensive half of the line below, and it only
   // changes when the library does - not every time a position is written.
   const filesByPath = useMemo(() => indexFiles(fileTree), [fileTree]);
 
   const recent = useMemo(
-    () => recentlyPlayed(filesByPath, watched.positions, watched.durations, CONTINUE_WATCHING, currentFile?.path || null),
-    [filesByPath, watched, currentFile],
+    () => recentlyPlayed(filesByPath, viewing.positions, viewing.durations, CONTINUE_WATCHING, currentFile?.path || null),
+    [filesByPath, viewing, currentFile],
   );
 
   // Folder-scoped, because that is what a download's landing place means: a
@@ -323,7 +319,7 @@ function App() {
           />
         )}
 
-        {/* 1. Sidebar Panel (Explorer) */}
+        {/* 1. Sidebar Panel (Library) */}
         {sidebarOpen && (
         <div
           ref={sidebarRef}
@@ -378,7 +374,7 @@ function App() {
           )}
 
           <div className="flex-none flex justify-between items-center px-4 pt-4 mb-2">
-            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Explorer</h2>
+            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Library</h2>
             {/* Picks up files added since the page loaded, without a reload and
                 without stopping what is playing. Not disabled while it runs: a
                 disabled button drops focus, which strands a remote. */}
@@ -422,7 +418,8 @@ function App() {
               nodes={fileTree}
               onSelectFile={handleSelectFile}
               currentFilePath={currentFile?.path || null}
-              progress={watched.progress}
+              progress={viewing.progress}
+              watched={viewing.watched}
             />
           )}
         </div>

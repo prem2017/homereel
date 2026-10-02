@@ -92,7 +92,7 @@ export const Header: React.FC<HeaderProps> = ({ onSearchResultSelect, sidebarOpe
              <Film className="text-white" size={18} />
         </div>
         <h1 className="hidden md:block text-xl font-bold bg-clip-text gradient-text bg-gradient-to-r from-blue-400 to-purple-400">
-          MediaServer
+          HomeReel
         </h1>
       </div>
 

@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { FileNode } from '../types';
-import { ChevronRight, ChevronDown, FileVideo, FileAudio, Folder } from 'lucide-react';
+import { ChevronRight, ChevronDown, FileVideo, FileAudio, Folder, Check } from 'lucide-react';
 import { normalizeKey } from '../utils/keys';
 import { createNumberStore } from '../utils/localNumbers';
+import { labelOf } from '../utils/mediaLabel';
 
 interface FileTreeProps {
   nodes: FileNode[];
@@ -10,6 +11,8 @@ interface FileTreeProps {
   currentFilePath: string | null;
   /** How far through each file playback got, 0-1, for the bar under the row. */
   progress?: Map<string, number>;
+  /** Files played to the end, for the tick on the row. */
+  watched?: Map<string, number>;
 }
 
 /**
@@ -64,6 +67,18 @@ export const flatten = (nodes: FileNode[], openPaths: Set<string>, depth = 0, ou
 // The DOM id App.tsx scrolls a search hit into view by.
 export const rowDomId = (path: string) => `file-node-${path.replace(/[^a-zA-Z0-9]/g, '_')}`;
 
+// Why a TV may refuse a file, said where the chip is: before it is pressed.
+const RISK_SAYS: Record<string, string> = {
+  HEVC: 'HEVC (H.265) video - many TV browsers cannot decode it',
+  MKV: 'MKV - some TV browsers cannot open it',
+};
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
+
+// Left of the bar under a file row: its indent plus the chevron column, so the
+// bar starts under the file's own icon and reads as that file's progress.
+const BAR_INSET = 22;
+
 const getIcon = (node: FileNode) => {
   if (node.type === 'directory') return <Folder size={16} className="text-yellow-500" />;
   if (node.mimeType?.startsWith('audio')) return <FileAudio size={16} className="text-purple-400" />;
@@ -79,11 +94,18 @@ const FileTreeRow: React.FC<{
   // A number rather than the whole map, so React.memo still sees a row whose
   // progress has not moved as unchanged.
   progress?: number;
+  watched: boolean;
   onActivate: (node: FileNode) => void;
   onFocus: (path: string) => void;
-}> = React.memo(({ node, depth, isOpen, isSelected, tabIndex, progress, onActivate, onFocus }) => {
+}> = React.memo(({ node, depth, isOpen, isSelected, tabIndex, progress, watched, onActivate, onFocus }) => {
   const isDirectory = node.type === 'directory';
-  const watched = progress ? Math.round(progress * 100) : 0;
+  const percent = progress ? Math.round(progress * 100) : 0;
+  const indent = depth * 12 + 8;
+  // What differs between neighbours comes first, so truncation can only eat what
+  // repeats: "Episode 2" with an S01E02 marker, not six rows of "Le.Bureau.d…".
+  // Display only - the id, the path and the tooltip keep the file's own name.
+  const label = isDirectory ? null : labelOf(node);
+  const said = watched ? 'watched' : percent ? `${percent}% watched` : '';
 
   return (
     <button
@@ -97,32 +119,55 @@ const FileTreeRow: React.FC<{
       tabIndex={tabIndex}
       id={rowDomId(node.path)}
       data-row="1"
-      title={watched ? `${node.name} — ${watched}% watched` : node.name}
+      title={said ? `${node.name} — ${said}` : node.name}
       onClick={() => onActivate(node)}
       onFocus={() => onFocus(node.path)}
-      style={{ paddingLeft: `${depth * 12 + 8}px` }}
+      style={{ paddingLeft: `${indent}px` }}
       // focus:, not focus-visible: - :focus-visible needs Chrome 86 and the TVs this
       // is built for are Chromium 47, where the focus style would never appear at all.
       // A solid background rather than a ring, for the same reason and because it
       // reads from across a room.
       className={`relative w-full flex items-center py-1 px-2 text-left cursor-pointer transition-colors hover:bg-gray-800 focus:outline-none focus:bg-blue-700 focus:text-white ${isSelected ? 'bg-gray-700 text-blue-300 border-l-2 border-blue-500' : 'text-gray-300'}`}
     >
-      <span className="mr-2 opacity-70">
+      <span className="mr-2 opacity-70 flex-none">
         {isDirectory
           ? (isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />)
           : <div className="w-3.5" />}
       </span>
-      <span className="mr-2">{getIcon(node)}</span>
-      <span className="truncate text-sm">{node.name}</span>
+      <span className="mr-2 flex-none">{getIcon(node)}</span>
+      {label && label.track !== undefined && (
+        <span className="mr-1.5 flex-none text-xs text-gray-500 font-mono">{pad2(label.track)}</span>
+      )}
+      <span className="truncate min-w-0 text-sm">{label ? label.title : node.name}</span>
+
+      {label && (
+        <span className="ml-auto pl-2 flex-none flex items-center text-[11px] text-gray-500">
+          {label.risk && (
+            <span className="ml-1 px-1 rounded leading-4 bg-amber-900 text-amber-200" title={RISK_SAYS[label.risk]}>
+              {label.risk}
+            </span>
+          )}
+          {/* An episode's marker says enough; its neighbours share the rest.
+              Otherwise two chips at most, so the title keeps the room. */}
+          {label.marker ? (
+            <span className="ml-1 font-mono text-gray-400">{label.marker}</span>
+          ) : (
+            <>
+              {label.year && <span className="ml-1">{label.year}</span>}
+              {label.resolution && !(label.risk && label.year) && <span className="ml-1 font-mono">{label.resolution}</span>}
+            </>
+          )}
+          {watched && <Check size={14} className="ml-1 text-green-400" aria-label="Watched" />}
+        </span>
+      )}
 
       {/* How far in this file was left. The player has been recording it all
           along; until now the only place it showed was a toast after the file
           was already open, which is too late to be the reason you picked it. */}
-      {watched > 0 && (
-        <span
-          className="absolute left-0 bottom-0 h-0.5 bg-blue-500"
-          style={{ width: `${watched}%` }}
-        />
+      {percent > 0 && (
+        <span className="absolute bottom-0 right-2 h-0.5 bg-gray-700" style={{ left: `${indent + BAR_INSET}px` }}>
+          <span className="block h-full bg-blue-500" style={{ width: `${percent}%` }} />
+        </span>
       )}
     </button>
   );
@@ -150,7 +195,7 @@ export const filterTree = (nodes: FileNode[]): FileNode[] => {
     .filter((node): node is FileNode => node !== null);
 };
 
-export const FileTree: React.FC<FileTreeProps> = ({ nodes, onSelectFile, currentFilePath, progress }) => {
+export const FileTree: React.FC<FileTreeProps> = ({ nodes, onSelectFile, currentFilePath, progress, watched }) => {
   const filteredNodes = React.useMemo(() => filterTree(nodes), [nodes]);
   const [openPaths, setOpenPaths] = useState<Set<string>>(
     () => new Set(openFolderStore.entries().map(([path]) => path)),
@@ -285,6 +330,7 @@ export const FileTree: React.FC<FileTreeProps> = ({ nodes, onSelectFile, current
           isSelected={node.path === currentFilePath}
           tabIndex={node.path === tabStopPath ? 0 : -1}
           progress={node.type === 'file' ? progress?.get(node.path) : undefined}
+          watched={node.type === 'file' && !!watched?.has(node.path)}
           onActivate={activate}
           onFocus={setFocusedPath}
         />

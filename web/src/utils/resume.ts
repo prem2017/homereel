@@ -19,10 +19,30 @@ export const resumeStore = createNumberStore('media-player:resume', 200);
  */
 export const durationStore = createNumberStore('media-player:duration', 200);
 
+/**
+ * Files played to the end: path -> when, in ms. The resume position is deleted
+ * on finishing, so without this a finished episode looked exactly like one never
+ * started.
+ *
+ * Written by the player on `ended`, and on a save inside the last stretch -
+ * the credits, which is where people stop - and taken back by Start over. Video
+ * only: a tick on every song of an album says nothing.
+ */
+export const watchedStore = createNumberStore('media-player:watched', 1000);
+
 // Resuming into the first or last stretch of a file sends nobody anywhere they
 // want to go back to, so the player starts those from the top.
 const RESUME_MIN_SECONDS = 30;
 const RESUME_TAIL_SECONDS = 30;
+
+/**
+ * Inside the closing stretch, where a resume is no longer offered because the
+ * file is as good as finished. The same line as `isResumable`'s tail.
+ */
+export const isFinishedAt = (position: number, duration?: number): boolean =>
+  position > RESUME_MIN_SECONDS
+  && duration !== undefined && isFinite(duration) && duration > 0
+  && position >= duration - RESUME_TAIL_SECONDS;
 
 /**
  * Whether the player resumes from `position`. One copy for both readers: the
@@ -104,9 +124,10 @@ export const progressByPath = (
   return out;
 };
 
-/** Both stores read together, which is the only way either of them is useful. */
+/** The stores read together, which is the only way any of them is useful. */
 export const readProgress = () => {
   const positions = resumeStore.entries();
   const durations = new Map(durationStore.entries());
-  return { positions, durations, progress: progressByPath(positions, durations) };
+  const watched = new Map(watchedStore.entries());
+  return { positions, durations, watched, progress: progressByPath(positions, durations) };
 };

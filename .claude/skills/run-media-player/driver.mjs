@@ -293,7 +293,10 @@ const commands = {
       const mark = open === null ? ' ' : open === 'true' ? 'v' : '>';
       const pad = '  '.repeat((Number(el.getAttribute('aria-level')) || 1) - 1);
       const selected = el.getAttribute('aria-selected') === 'true' ? '  (selected)' : '';
-      return `${pad}${mark} ${el.querySelector('span.truncate').textContent}${selected}`;
+      // Files show a tidied name; the tooltip starts with the one on disk.
+      const shown = el.querySelector('span.truncate').textContent;
+      const name = (el.getAttribute('title') || '').split(' — ')[0];
+      return `${pad}${mark} ${shown}${name && name !== shown ? `  [${name}]` : ''}${selected}`;
     }));
     return rows.join('\n');
   },

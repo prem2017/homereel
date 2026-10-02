@@ -3,7 +3,7 @@ import { Play, Volume2, Type, SkipForward, SkipBack, Loader2 } from 'lucide-reac
 import { formatTime } from '../utils/time';
 import { safePlay } from '../utils/media';
 import { readPref, writePref, PREF } from '../utils/prefs';
-import { resumeStore, durationStore, isResumable } from '../utils/resume';
+import { resumeStore, durationStore, watchedStore, isResumable, isFinishedAt } from '../utils/resume';
 import { reportToServer } from '../utils/remoteLog';
 import { describePlaybackError, PlaybackProblem } from '../utils/playbackError';
 import { getStreamUrl } from '../services/api';
@@ -129,6 +129,8 @@ const MediaPlayerView: React.FC<MediaPlayerProps> = ({
     filePath, availableSubtitles: slots.availableSubtitles, filePathRef: slots.filePathRef,
     fillBottom: slots.fillBottom, onSubtitlesSaved,
   });
+
+  const isVideoFile = !!filePath && !mimeType?.startsWith('audio');
 
   // Click Gesture States
   const clickTimeoutRef = useRef<number | null>(null);
@@ -360,6 +362,10 @@ const MediaPlayerView: React.FC<MediaPlayerProps> = ({
     if (filePath && Math.abs(t - lastSavedRef.current) >= RESUME_SAVE_EVERY) {
       lastSavedRef.current = t;
       resumeStore.write(filePath, t);
+      // Into the credits counts as finished: that is where people stop.
+      if (isVideoFile && isFinishedAt(t, video.duration) && !watchedStore.read(filePath)) {
+        watchedStore.write(filePath, Date.now());
+      }
       onProgress?.();
     }
   };
@@ -392,9 +398,11 @@ const MediaPlayerView: React.FC<MediaPlayerProps> = ({
   const handleEnded = () => {
     setIsPlaying(false);
     // Finished means there is nothing to come back to - and the library has to
-    // hear about the removal as well as the writes, or the row stays.
+    // hear about the removal as well as the writes, or the row stays. It does
+    // remember that this one was seen to the end.
     if (filePath) {
       resumeStore.write(filePath, null);
+      if (isVideoFile) watchedStore.write(filePath, Date.now());
       onProgress?.();
     }
 
@@ -445,6 +453,7 @@ const MediaPlayerView: React.FC<MediaPlayerProps> = ({
     setResumedFrom(null);
     if (filePath) {
       resumeStore.write(filePath, null);
+      watchedStore.write(filePath, null);
       onProgress?.();
     }
   };

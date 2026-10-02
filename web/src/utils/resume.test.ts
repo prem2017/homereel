@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { indexFiles, recentlyPlayed, progressByPath, isResumable } from './resume';
+import { indexFiles, recentlyPlayed, progressByPath, isResumable, isFinishedAt } from './resume';
 import { FileNode } from '../types';
 
 const file = (name: string, path: string): FileNode => ({ name, path, type: 'file' });
@@ -110,5 +110,21 @@ describe('progressByPath', () => {
     // A position past the end is possible after a re-encode shortens the file.
     const progress = progressByPath([['a.mkv', 500]], new Map([['a.mkv', 200]]));
     expect(progress.get('a.mkv')).toBe(1);
+  });
+});
+
+describe('isFinishedAt', () => {
+  it('is the closing stretch the player no longer offers to resume from', () => {
+    expect(isFinishedAt(5970, 6000)).toBe(true);
+    expect(isFinishedAt(5960, 6000)).toBe(false);
+    expect(isResumable(5970, 6000)).toBe(false);
+  });
+
+  it('needs a known length, and more than the opening seconds', () => {
+    expect(isFinishedAt(5990, undefined)).toBe(false);
+    expect(isFinishedAt(5990, Infinity)).toBe(false);
+    // A 40-second clip: not finished at 20s however close to the end that is.
+    expect(isFinishedAt(20, 40)).toBe(false);
+    expect(isFinishedAt(35, 40)).toBe(true);
   });
 });

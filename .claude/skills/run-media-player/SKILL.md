@@ -86,7 +86,7 @@ EOF
 | command | does |
 |---|---|
 | `open [path]` | load the app, wait for the library |
-| `rows` | print the tree as shown (`>` closed, `v` open) |
+| `rows` | print the tree as shown (`>` closed, `v` open), with the name on disk in `[…]` where the row shows a tidied one |
 | `play <path>` | open its folders if closed, click the row, wait until playing |
 | `search <words>` · `pick <path>` | header search, print hits as `audio`/`video`; click a hit |
 | `button <name>` | reveal the player controls, click the button with that accessible name: `Fullscreen`, `Subtitles`, `Next`, `Download`, `Rescan media folder`… |

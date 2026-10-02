@@ -180,6 +180,15 @@ SD_Au-Service-De-La-France-S01E01_fr3.srt     resolution omitted when unknown
   `.gradient-text` in `index.css`, the `bg-black/70` scrim under the control bar).
   **`-translate-x-1/2` is one of them** — centre toasts with a full-width
   `flex justify-center` row, never `left-1/2 -translate-x-1/2`.
+- **Library rows say what differs first**: `labelOf` (`utils/mediaLabel.ts`) gives
+  "Episode 2" plus an `S01E02` marker, or a film's title plus year and resolution
+  (two chips at most), an amber `HEVC`/`MKV` chip, and a tick for a finished file.
+  The progress bar starts under the file's icon. The row's id, the tooltip and the
+  path keep the name on disk.
+- **The icon is PNG** (`web/public/`: favicon, apple-touch-icon, manifest icons) -
+  Chromium 47 has no SVG favicons. `manifest.webmanifest` makes Add to Home Screen
+  open full screen; there is deliberately no service worker, so nothing is cached
+  offline and `index.html` stays no-store.
 - **Remote navigation is a feature.** File rows and search results are real
   `<button>`s (`role="treeitem"`, roving `tabIndex`, one delegated key handler in
   `FileTree`). Never `<div onClick>`.
@@ -247,6 +256,7 @@ and a full quota must never break playback.
 | `media-player:subtitle-offset` | subtitle path → seconds | the sync buttons |
 | `media-player:subtitle-top` | video path → subtitle path | the Top Source menu |
 | `media-player:subtitle-bottom` | video path → subtitle path | the Bottom Source menu, and a download that filled an empty slot |
+| `media-player:watched` | file path → ms when finished | the player, on `ended` and on a save in the last 30s (video only); Start over clears it |
 | `media-player:open-folders` | folder path → 1 | `FileTree`, as a set |
 | `media-player:prefs` | fixed keys → number | volume, mute, speed, both font sizes, sidebar width and open state |
 
