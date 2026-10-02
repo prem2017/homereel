@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Film, PanelLeft } from 'lucide-react';
 import { SearchResult } from '../types';
 import { SearchBox } from './SearchBox';
+import { cycleTextScale, readTextScale } from '../utils/textScale';
 
 interface HeaderProps {
   onSearchResultSelect: (result: SearchResult) => void;
@@ -11,7 +12,9 @@ interface HeaderProps {
   onHome: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onSearchResultSelect, sidebarOpen, onToggleSidebar, onHome }) => (
+export const Header: React.FC<HeaderProps> = ({ onSearchResultSelect, sidebarOpen, onToggleSidebar, onHome }) => {
+  const [textScale, setTextScale] = useState(readTextScale);
+  return (
   <header className="h-16 flex-none bg-gray-900 border-b border-gray-800 flex items-center px-3 md:px-6 z-50 shadow-md">
     <div className="flex items-center space-x-2 flex-none">
       {/* First in the DOM so a remote reaches it with one Tab - it is the only
@@ -51,5 +54,19 @@ export const Header: React.FC<HeaderProps> = ({ onSearchResultSelect, sidebarOpe
     {/* The whole rest of the header: the All / Video / Audio filter moved into
         the results, which is what gives search room on a phone. */}
     <SearchBox onSelect={onSearchResultSelect} />
+
+    {/* Text size for this screen: 100, 125, 150%. Not on a phone, which has
+        its own zoom and no room. */}
+    <button
+      type="button"
+      onClick={() => setTextScale(cycleTextScale(textScale))}
+      aria-label={`Text size ${Math.round(textScale * 100)}%`}
+      title="Text size for this screen"
+      className="hidden md:flex flex-none items-baseline ml-2 px-2 py-1 rounded-md text-gray-300 hover:bg-gray-800 focus:outline-none focus:bg-blue-700 focus:text-white"
+    >
+      <span className="font-serif text-lg leading-none">Aa</span>
+      <span className="ml-1 text-xs text-gray-400">{Math.round(textScale * 100)}%</span>
+    </button>
   </header>
-);
+  );
+};

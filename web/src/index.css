@@ -61,3 +61,29 @@ video::-webkit-media-controls {
     color: transparent;
   }
 }
+
+/* Large text (utils/textScale.ts): the root font size scales everything in rem;
+   icons are sized in pixels, so they are zoomed by the same factor. zoom, not a
+   transform: it moves the layout with it, and Chromium 47 has it. */
+html[data-text-scale="1.25"] #root svg {
+  zoom: 1.25;
+}
+html[data-text-scale="1.5"] #root svg {
+  zoom: 1.5;
+}
+
+/* Where focus is, from across a room: a solid outline with a gap, over the blue
+   fill every focusable thing already has. Only while keys are moving focus (the
+   `keyboard` class, main.tsx) - !important because each control also says
+   focus:outline-none for the pointer's sake. Library rows draw it inside, since
+   their list scrolls and would clip a gap. */
+html.keyboard button:focus,
+html.keyboard input:focus,
+html.keyboard select:focus,
+html.keyboard [tabindex]:focus {
+  outline: 3px solid #93c5fd !important;
+  outline-offset: 2px !important;
+}
+html.keyboard [role="treeitem"]:focus {
+  outline-offset: -3px !important;
+}

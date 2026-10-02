@@ -194,6 +194,16 @@ SD_Au-Service-De-La-France-S01E01_fr3.srt     resolution omitted when unknown
   Chromium 47 has no SVG favicons. `manifest.webmanifest` makes Add to Home Screen
   open full screen; there is deliberately no service worker, so nothing is cached
   offline and `index.html` stays no-store.
+- **Large text is the root font size** (`utils/textScale.ts`, the header's Aa
+  button: 100/125/150%, per browser in prefs): every rem size follows; icons are
+  pixel-sized, so `index.css` zooms `#root svg` by the same factor (`zoom`, which
+  Chromium 47 has, rather than a transform). Applied in `main.tsx` before the first
+  paint. Subtitle sizes are their own.
+- **The strong focus outline shows only while keys move focus**: `main.tsx` adds
+  `html.keyboard` on Tab or an arrow and removes it at the next mouse or touch
+  press - `:focus-visible` is Chrome 86. The rule is `!important` because controls
+  also say `focus:outline-none`. The TV's remote drives a pointer (its arrows move
+  it), so clicks there leave no rings.
 - **Remote navigation is a feature.** File rows and search results are real
   `<button>`s (`role="treeitem"`, roving `tabIndex`, one delegated key handler in
   `FileTree`). Never `<div onClick>`.
@@ -313,7 +323,7 @@ and a full quota must never break playback.
 | `media-player:subtitle-language` | `top` / `bottom` / `download` → language code | the Source menus (`''`: the file named no language, or Off) and the Get subtitles menu |
 | `media-player:watched` | file path → ms when finished | the player, on `ended` and on a save in the last 30s (video only); Start over clears it |
 | `media-player:open-folders` | folder path → 1 | `FileTree`, as a set |
-| `media-player:prefs` | fixed keys → number | volume, mute, speed, both font sizes, sidebar width and open state, time left vs length |
+| `media-player:prefs` | fixed keys → number | volume, mute, speed, both font sizes, sidebar width and open state, time left vs length, text size |
 
 - **Insertion order is recency** (`write` deletes, then sets): Home's Continue
   watching is that order reversed, and trimming is LRU.

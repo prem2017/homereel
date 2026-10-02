@@ -26,6 +26,8 @@ export const PREF = {
   sidebarOpen: 'sidebar-open',
   // The control bar's total reads as time left (1) or as the length (0).
   remaining: 'time-left',
+  // The whole interface's text size: 1, 1.25 or 1.5 (utils/textScale.ts).
+  textScale: 'text-scale',
 };
 
 /** The saved value, or `fallback` when there is none or it is unusable. */

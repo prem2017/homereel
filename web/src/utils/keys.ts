@@ -8,6 +8,7 @@
 // switch on a single string.
 const KEY_CODES: Record<number, string> = {
     8: 'Backspace',
+    9: 'Tab',
     13: 'Enter',
     27: 'Escape',
     32: ' ',

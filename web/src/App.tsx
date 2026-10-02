@@ -10,6 +10,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { fetchFileTree } from './services/api';
 import { FileNode, SearchResult } from './types';
 import { readPref, writePref, PREF } from './utils/prefs';
+import { readTextScale } from './utils/textScale';
 import { indexFiles, readProgress } from './utils/resume';
 import { findSiblings, folderOf, isPlayable, nextPlayable } from './utils/siblings';
 
@@ -43,9 +44,9 @@ function App() {
   }, []);
 
   // Resizable Sidebar State
-  // Remembered between visits; 280px the first time, wide enough for "Episode 2"
-  // and its S01E02 marker side by side.
-  const [sidebarWidth, setSidebarWidth] = useState(() => readPref(PREF.sidebarWidth, 280));
+  // Remembered between visits; 280px the first time - wide enough for "Episode 2"
+  // and its S01E02 marker side by side - grown with the text size.
+  const [sidebarWidth, setSidebarWidth] = useState(() => readPref(PREF.sidebarWidth, Math.round(280 * readTextScale())));
 
   // On a phone the sidebar is a drawer over the player rather than a column
   // beside it, so it starts closed there whatever was last chosen on a desktop -

@@ -17,6 +17,8 @@ describe('normalizeKey', () => {
         expect(normalizeKey(oldBrowser(32))).toBe(' ');
         expect(normalizeKey(oldBrowser(13))).toBe('Enter');
         expect(normalizeKey(oldBrowser(27))).toBe('Escape');
+        // Tab is what turns on the keyboard focus outline (main.tsx).
+        expect(normalizeKey(oldBrowser(9))).toBe('Tab');
     });
 
     it('derives letters and digits from keyCode on old browsers', () => {
