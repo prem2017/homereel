@@ -20,6 +20,8 @@ export const SHORTCUTS: Array<[string, string]> = [
   ['f', 'Fullscreen (Esc or Back leaves it)'],
   ['n / p', 'Next or previous file in the folder'],
   ['g / h', 'Subtitle 0.1s earlier or later'],
+  ['c', 'Bottom subtitle off, or back on'],
+  ['t', 'Top subtitle off, or back on'],
   ['0 - 9', 'Jump to that tenth of the file'],
   ['?', 'This list'],
 ];
@@ -33,7 +35,7 @@ export const GESTURES: Array<[string, string]> = [
 /** The player's keyboard and TV-remote handling, on the window. */
 export const usePlayerKeys = ({
   filePath, videoRef, togglePlay, skip, seekTo, changeVolume, toggleMute, toggleFullscreen,
-  onNext, onPrevious, nudgeOffset, bottomSubtitle, setIsPlaying, showFeedbackIcon,
+  onNext, onPrevious, nudgeOffset, bottomSubtitle, setIsPlaying, showFeedbackIcon, toggleSubtitle,
   setShowHelp, setShowSubSettings, showHelpRef, showSubSettingsRef,
 }: {
   filePath: string | null;
@@ -50,6 +52,7 @@ export const usePlayerKeys = ({
   bottomSubtitle: FileNode | null;
   setIsPlaying: (playing: boolean) => void;
   showFeedbackIcon: (type: string) => void;
+  toggleSubtitle: (slot: SubtitleSlot) => void;
   setShowHelp: React.Dispatch<React.SetStateAction<boolean>>;
   setShowSubSettings: (open: boolean) => void;
   showHelpRef: React.MutableRefObject<boolean>;
@@ -95,6 +98,11 @@ export const usePlayerKeys = ({
         case 'g': nudgeOffset(bottomSubtitle ? 'bottom' : 'top', -OFFSET_FINE_STEP); break;
         case 'h': nudgeOffset(bottomSubtitle ? 'bottom' : 'top', OFFSET_FINE_STEP); break;
 
+        // A slot off and back on, without opening the panel - recorded like a
+        // pick from its menu, so it stays that way for this film.
+        case 'c': toggleSubtitle('bottom'); break;
+        case 't': toggleSubtitle('top'); break;
+
         // Shift+/ has no keyCode of its own on Chromium 47, so this is the
         // modern-browser half of the shortcut. The button in the control bar is
         // the half that works on a remote, and both are needed.
@@ -117,5 +125,5 @@ export const usePlayerKeys = ({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [filePath, togglePlay, skip, seekTo, changeVolume, toggleMute, toggleFullscreen, onNext, onPrevious, nudgeOffset, bottomSubtitle]);
+  }, [filePath, togglePlay, skip, seekTo, changeVolume, toggleMute, toggleFullscreen, onNext, onPrevious, nudgeOffset, bottomSubtitle, toggleSubtitle]);
 };

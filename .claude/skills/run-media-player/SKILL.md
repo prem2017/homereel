@@ -97,7 +97,7 @@ EOF
 | `eval <js>` | print a page expression |
 | `screenshot [name]` · `viewport <w> <h>` | capture; resize (`400 800` gives the phone drawer) |
 | `dark <sel>` | while `Dark/Night.mp4` plays: wait for the controls to fade, PASS if nothing bright is painted over the element |
-| `sh <cmd>` | shell in the fixture media dir, e.g. `sh cp "Show/Episode 2.mp4" "Show/Episode 3.mp4"` before `button Rescan media folder` |
+| `sh <cmd>` | shell in the fixture media dir, e.g. `sh cp "Show/Episode 2.mp4" "Show/Episode 3.mp4"`; the server rescans after it, but a page already open needs `button Rescan media folder` |
 | `api <path>` · `log [n]` · `console` | GET the server; tail its log; page console errors |
 | `fake-subtitles` | answer `/api/subtitles/{languages,search,download}` in the browser; a download writes a real `.srt`. Run it **before** `open` |
 | `hold-downloads` · `release-downloads` | park fake downloads, to switch videos mid-download |

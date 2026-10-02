@@ -1,8 +1,9 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { parseSubtitleFileName } from '../../utils/subtitleNaming';
 import { useSubtitleDownload, SavedSubtitles, reusableSubtitle } from '../../hooks/useSubtitleDownload';
 import { useSubsceneId } from '../../hooks/useSubsceneId';
 import { FileNode, SubtitleCandidate } from '../../types';
+import { languagePrefs } from './useSubtitleSlots';
 
 /**
  * Subtitles from outside the folder: the provider search, the metered download,
@@ -26,7 +27,10 @@ export const useOnlineSubtitles = ({
   // up on is a separate decision, made in the Source menus above - a file on disk
   // is not "the top one" until something puts it there.
   const subtitleFinder = useSubtitleDownload(filePath || '');
-  const [searchLanguage, setSearchLanguage] = useState('');
+  // The language last asked for, ready for the next film - but only one the
+  // server still offers (SUBTITLE_LANGUAGES can change), or Download would ask
+  // for a language it refuses.
+  const [searchLanguage, setSearchLanguage] = useState(() => languagePrefs.read('download') || '');
   const [showCandidates, setShowCandidates] = useState(false);
   // Subscene has its own setting and takes no part in SUBTITLE_PROVIDERS, so the
   // ID box appears and disappears independently of the search menu above it.
@@ -70,9 +74,15 @@ export const useOnlineSubtitles = ({
     fillBottom(node);
   }, [onSubtitlesSaved, fillBottom, filePath, filePathRef]);
 
+  useEffect(() => {
+    const offered = subtitleFinder.languages;
+    if (searchLanguage && offered.length > 0 && !offered.some(l => l.code === searchLanguage)) setSearchLanguage('');
+  }, [subtitleFinder.languages, searchLanguage]);
+
   const handleLanguagePick = useCallback((language: string) => {
     setSearchLanguage(language);
     setShowCandidates(false);
+    if (language) languagePrefs.write('download', language);
   }, []);
 
   // Take the best match that is not already on disk. Pressing Download again

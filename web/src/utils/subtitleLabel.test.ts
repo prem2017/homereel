@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { describeSubtitle, languageName, languageOfSubtitle } from './subtitleLabel';
+import { defaultSubtitle, describeSubtitle, languageName, languageOfSubtitle } from './subtitleLabel';
 import type { FileNode } from '../types';
 
 const sub = (path: string): FileNode => ({ name: path.split('/').pop()!, path, type: 'file' });
@@ -39,5 +39,32 @@ describe('describeSubtitle', () => {
   it('names languages it knows and capitalises the rest', () => {
     expect(languageName('kn')).toBe('Kannada');
     expect(languageName('xx')).toBe('XX');
+  });
+});
+
+describe('defaultSubtitle', () => {
+  const ar = sub('Films/Film.ar.srt');
+  const en = sub('Films/Film.en.srt');
+  const otherEn = sub('Films/Subs/English.srt');
+  const plain = sub('Films/notes.srt');
+
+  it('prefers the language over the folder order', () => {
+    expect(defaultSubtitle([ar, en], 'Film.mp4', 'en')).toBe(en);
+    expect(defaultSubtitle([ar, en], 'Film.mp4', 'ar')).toBe(ar);
+  });
+
+  it('prefers a file named after the film within the language, then the language anywhere', () => {
+    expect(defaultSubtitle([otherEn, en], 'Film.mp4', 'en')).toBe(en);
+    expect(defaultSubtitle([ar, otherEn], 'Film.mp4', 'en')).toBe(otherEn);
+  });
+
+  it('falls back to the old rule: named after the film, then the first', () => {
+    expect(defaultSubtitle([plain, ar], 'Film.mp4', 'de')).toBe(ar);
+    expect(defaultSubtitle([plain], 'Film.mp4', null)).toBe(plain);
+    expect(defaultSubtitle([], 'Film.mp4', 'en')).toBeNull();
+  });
+
+  it('leaves out what the other slot shows', () => {
+    expect(defaultSubtitle([ar, en], 'Film.mp4', 'en', en)).toBe(ar);
   });
 });

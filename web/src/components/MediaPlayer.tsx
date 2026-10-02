@@ -14,7 +14,7 @@ import { SubtitlePanel } from './player/SubtitlePanel';
 import { ShortcutSheet } from './player/ShortcutSheet';
 import { ResumeNotice, UpNextNotice } from './player/Notices';
 import { InfoLine } from './player/InfoLine';
-import { languageOfSubtitle } from '../utils/subtitleLabel';
+import { languageName, languageOfSubtitle } from '../utils/subtitleLabel';
 import { ProblemOverlay } from './player/ProblemOverlay';
 import { useSubtitleSlots } from './player/useSubtitleSlots';
 import { useOnlineSubtitles } from './player/useOnlineSubtitles';
@@ -330,6 +330,26 @@ const MediaPlayerView: React.FC<MediaPlayerProps> = ({
     setTimeout(() => setFeedback(null), 800);
   }, []);
 
+  // A line of text at the top for a moment: what a key just did that has nothing
+  // else on screen to show it (the c and t subtitle keys).
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimerRef = useRef<number | null>(null);
+  const say = useCallback((text: string) => {
+    setToast(text);
+    if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = window.setTimeout(() => setToast(null), 1800);
+  }, []);
+  useEffect(() => () => { if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current); }, []);
+
+  // c and t: a subtitle slot off, or back on with what it last showed.
+  const toggleSubtitle = useCallback((slot: 'top' | 'bottom') => {
+    const now = slots.toggleSlot(slot);
+    const where = slot === 'top' ? 'Top' : 'Bottom';
+    if (!now) { say(`${where} subtitles off`); return; }
+    const code = languageOfSubtitle(now.name);
+    say(`${where}: ${code ? languageName(code) : now.name}`);
+  }, [slots.toggleSlot, say]);
+
   // Any sign of life re-reveals the controls and restarts the countdown. Driven by
   // keys and clicks as well as the mouse, because a TV has no pointer at all and the
   // bar would otherwise sit over the film forever.
@@ -357,7 +377,7 @@ const MediaPlayerView: React.FC<MediaPlayerProps> = ({
   // Keyboard + TV remote - and the shortcut sheet's list, kept beside it.
   usePlayerKeys({
     filePath, videoRef, togglePlay, skip, seekTo, changeVolume, toggleMute, toggleFullscreen,
-    onNext, onPrevious, nudgeOffset, bottomSubtitle, setIsPlaying, showFeedbackIcon,
+    onNext, onPrevious, nudgeOffset, bottomSubtitle, setIsPlaying, showFeedbackIcon, toggleSubtitle,
     setShowHelp, setShowSubSettings, showHelpRef, showSubSettingsRef,
   });
 
@@ -711,6 +731,14 @@ const MediaPlayerView: React.FC<MediaPlayerProps> = ({
         />
       )}
 
+      {/* What a key just did. Centred by a full-width row (no transforms on the TV),
+          at the top, out of the bottom strip the cue placement measures. */}
+      {toast && (
+        <div className="absolute top-4 left-0 right-0 z-50 flex justify-center px-4 pointer-events-none">
+          <div className="bg-gray-900/95 border border-gray-700 rounded-full px-4 py-2 text-sm text-white">{toast}</div>
+        </div>
+      )}
+
       {/* Feedback Overlay */}
       {feedback && (
         <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none">
@@ -746,7 +774,7 @@ const MediaPlayerView: React.FC<MediaPlayerProps> = ({
 
             {showSubSettings && (
               <SubtitlePanel
-                bodyRef={subPanelBodyRef} slots={slots} online={online}
+                bodyRef={subPanelBodyRef} videoPath={filePath} videoName={fileName || ''} slots={slots} online={online}
                 topFontSize={topFontSize} onTopFontSize={setTopFontSize}
                 bottomFontSize={bottomFontSize} onBottomFontSize={setBottomFontSize}
               />

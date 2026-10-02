@@ -197,11 +197,10 @@ const pageHelpers = () => {
       const cues = showing.flatMap((t) => Array.from(t.activeCues || []).map((c) => c.text));
       const recent = byText('h2', 'Continue watching');
       const panel = byText('h3', 'Subtitles');
+      // The menus are named by aria-label: "Top Source", "Bottom Source", "Get subtitles".
       const menu = (label) => {
-        const l = panel && Array.from(panel.parentElement.querySelectorAll('label'))
-          .find((x) => x.textContent.trim().startsWith(label));
-        const select = l && l.nextElementSibling;
-        return select && select.tagName === 'SELECT'
+        const select = panel && panel.parentElement.querySelector(`select[aria-label="${label}"]`);
+        return select
           ? { value: select.value, options: Array.from(select.options).map((o) => o.value).filter(Boolean) }
           : null;
       };
@@ -271,7 +270,7 @@ const openPanel = async () => {
   if (await page.locator('h3:text-is("Subtitles")').count()) return;
   await revealControls();
   await page.getByRole('button', { name: 'Subtitles', exact: true }).click();
-  await page.locator('label:has-text("Bottom Source")').waitFor();
+  await page.locator('select[aria-label="Bottom Source"]').waitFor();
 };
 
 const screenshot = async (name = 'shot') => {
@@ -358,7 +357,13 @@ const commands = {
   async select(arg) {
     const [label, value] = splitArg(arg);
     await openPanel();
-    await page.locator(`label:has-text(${JSON.stringify(label)}) + select`).selectOption(value);
+    const menu = page.locator(`select[aria-label=${JSON.stringify(label)}]`);
+    // "Get subtitles" sits in "Find more online", folded once both slots are filled.
+    if (!(await menu.count())) {
+      const fold = page.getByRole('button', { name: /Find more online/ });
+      if (await fold.count()) await fold.click();
+    }
+    await menu.selectOption(value);
     return `${label} = ${value}`;
   },
   async key(name) {
@@ -440,6 +445,10 @@ const commands = {
   async sh(cmd) {
     const r = spawnSync('sh', ['-c', cmd], { cwd: media, encoding: 'utf8' });
     if (r.status !== 0) failures += 1;
+    // The server answers from a scan up to a minute old; make it look again, as
+    // the rescan button would, so the next `open` sees what this changed. A page
+    // already open still needs `button Rescan media folder`.
+    await fetch(`${server.base}/api/files?fresh=1`).catch(() => {});
     return `${r.stdout}${r.stderr}`.trimEnd() + (r.status ? `\n(exit ${r.status})` : '');
   },
   async console() {

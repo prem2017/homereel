@@ -85,3 +85,19 @@ export const describeSubtitle = (subtitle: FileNode, videoPath: string, videoNam
   const where = subtitle.path.indexOf(here) === 0 ? subtitle.path.slice(here.length) : subtitle.name;
   return language ? `${language} · ${where}` : where;
 };
+
+/**
+ * The subtitle a slot shows when nothing was chosen for this video: one in the
+ * preferred language, named after the film before any other; then one named
+ * after the film; then the folder's first. Folder order alone let
+ * `Film.ar.srt` beat `Film.en.srt`. `except` is what the other slot shows.
+ */
+export const defaultSubtitle = (
+  available: FileNode[], videoName: string | null, language: string | null, except?: FileNode | null,
+): FileNode | null => {
+  const base = videoName ? videoName.replace(/\.[^.]+$/, '') : '';
+  const pool = available.filter(s => !except || s.path !== except.path);
+  const named = (s: FileNode) => base !== '' && s.name.indexOf(base) === 0;
+  const spoken = (s: FileNode) => language !== null && languageOfSubtitle(s.name) === language;
+  return pool.find(s => spoken(s) && named(s)) || pool.find(spoken) || pool.find(named) || pool[0] || null;
+};

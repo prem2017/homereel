@@ -134,8 +134,13 @@ SD_Au-Service-De-La-France-S01E01_fr3.srt     resolution omitted when unknown
 - **Two parsers must agree**: `parseSubtitleFileName` in `naming.js` (counting) and
   in `web/src/utils/subtitleNaming.ts` (listing). The client match is loose on
   purpose; it only decides what a menu lists.
-- The player's default pick falls back to the parsed form, since a download's name
-  does not start with the video's.
+- The player's default pick (`defaultSubtitle` in `utils/subtitleLabel.ts`) is one in
+  the preferred language, named after the film before any other, then one named
+  after the film, then the first - a download's name does not start with the
+  video's, so the language is what finds it. The preferred bottom language is the
+  last one picked in its menu, else the browser's (`navigator.language`); the top
+  slot fills by default only in a language it was given before, never the
+  bottom's.
 - **Source menus list this video's subtitles only.** `subtitleMatchesVideo()` test
   order is load-bearing: exact `startsWith` → episode marker → title slug. Episode
   before slug because the server's slug mangles accents (`Légendes` → `L-gendes`).
@@ -197,6 +202,14 @@ SD_Au-Service-De-La-France-S01E01_fr3.srt     resolution omitted when unknown
   `cursor-none` while controls are hidden.
 - **Sidebar**: resizable column above `NARROW_WIDTH` (768px), drawer below. Only the
   header toggle writes its open state to `prefs`; crossing the threshold re-reads it.
+- **The subtitle panel is a card per slot** (source, size in A−/A+ steps, sync as
+  Earlier/Later), Swap between them, and "Find more online" folded beneath - open
+  by itself while a slot is empty, with the downloads left beside it. Its menus are
+  named by `aria-label` ("Top Source", "Bottom Source", "Get subtitles"), which is
+  how the driver finds them; entries say what a file is (`describeSubtitle`:
+  "English · named like the film (.en.srt)") while the value stays the path.
+  `c` / `t` switch the bottom / top slot off and back to what it last showed, with a
+  line at the top of the picture saying so.
 - **Shortcut sheet**: `SHORTCUTS` sits beside the key handler in
   `player/usePlayerKeys.ts`, and `GESTURES` beside it describes `handleContainerClick`
   in `MediaPlayer.tsx`. It opens on `?` and on a control-bar button — the TV cannot
@@ -271,6 +284,7 @@ and a full quota must never break playback.
 | `media-player:subtitle-offset` | subtitle path → seconds | the sync buttons |
 | `media-player:subtitle-top` | video path → subtitle path | the Top Source menu |
 | `media-player:subtitle-bottom` | video path → subtitle path | the Bottom Source menu, and a download that filled an empty slot |
+| `media-player:subtitle-language` | `top` / `bottom` / `download` → language code | the Source menus (`''`: the file named no language, or Off) and the Get subtitles menu |
 | `media-player:watched` | file path → ms when finished | the player, on `ended` and on a save in the last 30s (video only); Start over clears it |
 | `media-player:open-folders` | folder path → 1 | `FileTree`, as a set |
 | `media-player:prefs` | fixed keys → number | volume, mute, speed, both font sizes, sidebar width and open state, time left vs length |
@@ -287,9 +301,10 @@ and a full quota must never break playback.
   bar. `React.memo` on `MediaPlayer` and number-valued rows pay for that re-render.
 - **Resume saves on distance**: `Math.abs(t - lastSavedRef.current) >= RESUME_SAVE_EVERY`,
   so a rewind is saved too.
-- **Subtitle choice → video, offset → subtitle file, font size → room.** Only
-  deliberate choices are recorded (the Source menus; a download that filled an empty
-  slot). A read returns a node, `null` for a deliberate Off (stored as `''` — never
+- **Subtitle choice → video, offset → subtitle file, font size → room, language →
+  every film.** Only deliberate choices are recorded (the Source menus, Swap and the
+  c/t keys; a download that filled an empty slot) - c and t record the pick but
+  leave the language alone. A read returns a node, `null` for a deliberate Off (stored as `''` — never
   treat `''` as a deletion), or `undefined` (never chose, or the file is gone).
 - The `::cue` effect is keyed `[bottomFontSize, filePath, showControls]`: its
   `<style>` element exists only while something is playing.
