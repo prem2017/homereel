@@ -124,7 +124,7 @@ export const Home: React.FC<HomeProps> = ({
   // files the server cannot see.
   if (loadError && tree.length === 0) {
     return (
-      <div role="alert" className="flex items-center justify-center h-full bg-black rounded-lg px-6 py-6 overflow-y-auto">
+      <div data-home="" role="alert" className="flex items-center justify-center h-full bg-black rounded-lg px-6 py-6 overflow-y-auto">
         <div className="max-w-lg text-center">
           <AlertTriangle size={40} className="mx-auto mb-3 text-amber-400" />
           <p className="text-lg font-semibold text-white">HomeReel can't load your library</p>
@@ -147,7 +147,7 @@ export const Home: React.FC<HomeProps> = ({
 
   if (tiles.length === 0 && recent.length === 0) {
     return (
-      <div className="flex items-center justify-center h-full bg-black rounded-lg px-6 text-center">
+      <div data-home="" className="flex items-center justify-center h-full bg-black rounded-lg px-6 text-center">
         <div className="max-w-md">
           <Film size={40} className="mx-auto mb-3 text-gray-600" />
           <p className="text-lg text-gray-300">No video or audio files in your media folder yet</p>
@@ -158,7 +158,7 @@ export const Home: React.FC<HomeProps> = ({
   }
 
   return (
-    <div className="h-full overflow-y-auto rounded-lg bg-black px-2 md:px-4 py-4">
+    <div data-home="" className="h-full overflow-y-auto rounded-lg bg-black px-2 md:px-4 py-4">
       {going.length > 0 && (
         <Section title="Continue watching" note={`${going.length} to pick up`}>
           {going.map(card => <Card key={card.node.path} card={card} onPlay={onPlay} />)}

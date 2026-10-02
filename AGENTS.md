@@ -202,6 +202,16 @@ SD_Au-Service-De-La-France-S01E01_fr3.srt     resolution omitted when unknown
   `cursor-none` while controls are hidden.
 - **Sidebar**: resizable column above `NARROW_WIDTH` (768px), drawer below. Only the
   header toggle writes its open state to `prefs`; crossing the threshold re-reads it.
+- **Below 768px the player is compact** (`compact`, from App's `isNarrow`; desktop
+  and TV never see it): `CompactControls` over the picture - play and the skips in
+  the middle, time and Fullscreen along the bottom, the seek bar on the edge,
+  volume, speed and shortcuts in a ⋯ menu - in a layer that lets taps through to
+  the gestures (only its buttons take them, only while showing). The box takes the
+  film's shape through a padded wrapper (no `aspect-ratio`: too new). The resume
+  notice and Up next sit below the film, the subtitle panel is a sheet from the
+  bottom of the screen (so the cue is not shifted for it), the info line gets
+  subtitle and speed chips, and `WatchNext` lists what Next would play and what
+  else is on the go. The column scrolls.
 - **The subtitle panel is a card per slot** (source, size in A−/A+ steps, sync as
   Earlier/Later), Swap between them, and "Find more online" folded beneath - open
   by itself while a slot is empty, with the downloads left beside it. Its menus are
@@ -225,6 +235,12 @@ SD_Au-Service-De-La-France-S01E01_fr3.srt     resolution omitted when unknown
 - **Search** requires every word of the query in the file's path, compared without
   accents or punctuation (`searchKey`), so folder names and `Le.Bureau.des.Legendes`
   match. Listings are sorted with a numeric collator (Episode 2 before Episode 10).
+  The All / Video / Audio filter sits at the top of the results with a count each:
+  one `type=all` request answers all three (`components/SearchBox.tsx`). Results
+  are grouped by folder with the matched words marked (`utils/highlight.ts`, the
+  same accent-blind comparison), at most 50 drawn. Down from the box moves into the
+  results, Up/Down step, Enter plays; arrows stop there, as in the tree. Each hit is
+  a `button[data-result]` with `data-path` and `data-kind` (the driver reads them).
 - **The tree is fetched at load, by the rescan button, and when a search hit is not
   in it** (`loadLibrary`). A rescan keeps the current tree on screen. The player's
   siblings are a `useMemo` over the tree, so a rescan reaches its menus and Next.

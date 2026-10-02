@@ -4,6 +4,8 @@ import { Header } from './components/Header';
 import { FileTree, rowDomId } from './components/FileTree';
 import { MediaPlayer } from './components/MediaPlayer';
 import { Home } from './components/Home';
+import { WatchNext } from './components/WatchNext';
+import { continueCards, folderArt } from './utils/home';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { fetchFileTree } from './services/api';
 import { FileNode, SearchResult } from './types';
@@ -214,6 +216,19 @@ function App() {
   );
   const previousFile = currentIndex > 0 ? playableSiblings[currentIndex - 1] : undefined;
 
+  // On a phone, below the film: the next few files Next would play, and what
+  // else is on the go. Worked out only there.
+  const upcoming = useMemo(() => {
+    const out: FileNode[] = [];
+    if (!isNarrow || !nextFile) return out;
+    for (let at: FileNode | undefined = nextFile; at && out.length < 5; at = nextPlayable(fileTree, at.path)) out.push(at);
+    return out;
+  }, [isNarrow, nextFile, fileTree]);
+  const going = useMemo(() => (isNarrow && currentFile
+    ? continueCards(fileTree, filesByPath, viewing.positions, viewing.durations, viewing.watched, folderArt(fileTree), 5)
+      .filter(card => card.node.path !== currentFile.path && !upcoming.some(n => n.path === card.node.path))
+    : []), [isNarrow, currentFile, fileTree, filesByPath, viewing, upcoming]);
+
   // Autoplay-on-ended and the player's Next button are the same operation.
   //
   // Stable identities, so React.memo on the player is not inert. Written inline
@@ -399,8 +414,10 @@ function App() {
         {/* min-h-0 rather than overflow-auto: the player is h-full, so with the
             info line below it the column used to overflow its own height and
             grow a scrollbar, parking the line below the fold. */}
-        <div className="flex-1 flex flex-col p-3 md:p-4 overflow-hidden min-w-0 min-h-0">
-          <div className="flex-1 min-h-0">
+        {/* On a phone with a file open the column scrolls: the film at the top
+            in its own shape, and the lists under it. */}
+        <div className={`flex-1 flex flex-col p-3 md:p-4 min-w-0 min-h-0 ${isNarrow && currentFile ? 'overflow-y-auto' : 'overflow-hidden'}`}>
+          <div className={isNarrow && currentFile ? 'flex-none' : 'flex-1 min-h-0'}>
             {/* While nothing plays: where you were, what is next, what arrived.
                 The player stays mounted underneath, empty, so what this session
                 fetched is still known when the next file opens. */}
@@ -426,9 +443,11 @@ function App() {
                 next={nextFile || null}
                 onPrevious={previousFile ? handlePrevious : undefined}
                 onReveal={revealInLibrary}
+                compact={isNarrow}
               />
             </ErrorBoundary>
           </div>
+          {isNarrow && currentFile && <WatchNext upcoming={upcoming} going={going} onPlay={handleSelectFile} />}
 
         </div>
       </main>

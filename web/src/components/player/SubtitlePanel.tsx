@@ -157,6 +157,8 @@ interface SubtitlePanelProps {
   onTopFontSize: (size: number) => void;
   bottomFontSize: number;
   onBottomFontSize: (size: number) => void;
+  /** A sheet from the bottom of the screen, for a phone's small box. */
+  sheet?: boolean;
 }
 
 /**
@@ -166,7 +168,7 @@ interface SubtitlePanelProps {
  */
 export const SubtitlePanel: React.FC<SubtitlePanelProps> = ({
   bodyRef, videoPath, videoName, slots, online,
-  topFontSize, onTopFontSize: setTopFontSize, bottomFontSize, onBottomFontSize: setBottomFontSize,
+  topFontSize, onTopFontSize: setTopFontSize, bottomFontSize, onBottomFontSize: setBottomFontSize, sheet,
 }) => {
   const {
     availableSubtitles, topSubtitle, bottomSubtitle, topOffset, bottomOffset, nudgeOffset, chooseSubtitle, swap,
@@ -196,7 +198,9 @@ export const SubtitlePanel: React.FC<SubtitlePanelProps> = ({
   return (
     <div
       ref={bodyRef}
-      className="absolute bottom-full right-0 mb-10 bg-gray-900 rounded-lg p-3 w-80 max-w-[90vw] max-h-[60vh] overflow-y-auto shadow-2xl border border-gray-700 text-left"
+      className={`${sheet
+        ? 'fixed left-0 right-0 bottom-0 z-50 max-h-[70vh] rounded-t-xl'
+        : 'absolute bottom-full right-0 mb-10 w-80 max-w-[90vw] max-h-[60vh] rounded-lg'} bg-gray-900 p-3 overflow-y-auto shadow-2xl border border-gray-700 text-left`}
       onClick={(e) => e.stopPropagation()}
     >
       <h3 className="text-sm font-bold text-gray-300 mb-2">Subtitles</h3>

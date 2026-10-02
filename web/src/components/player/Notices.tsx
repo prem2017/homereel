@@ -17,10 +17,12 @@ export const ResumeNotice: React.FC<{
   noticeRef: React.RefObject<HTMLDivElement>;
   visible: boolean;
   resumedFrom: number;
+  /** Below the film rather than over it - a phone's picture is too small. */
+  inline?: boolean;
   onStartOver: () => void;
   onDismiss: () => void;
-}> = ({ noticeRef, visible, resumedFrom, onStartOver, onDismiss }) => (
-  <div ref={noticeRef} className={`absolute bottom-24 left-0 right-0 z-40 flex justify-center px-4 transition-opacity duration-300 ${visible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+}> = ({ noticeRef, visible, resumedFrom, inline, onStartOver, onDismiss }) => (
+  <div ref={noticeRef} className={inline ? 'mt-3 flex' : `absolute bottom-24 left-0 right-0 z-40 flex justify-center px-4 transition-opacity duration-300 ${visible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
     <div className="flex items-center space-x-3 bg-gray-900/95 border border-gray-700 rounded-full pl-4 pr-2 py-2">
       <span className="text-sm text-gray-200">Resumed from {formatTime(resumedFrom)}</span>
       <button
@@ -56,9 +58,11 @@ export const UpNextNotice: React.FC<{
   total: number;
   next: FileNode;
   current: FileNode | null;
+  /** Below the film rather than in its corner - a phone's picture is too small. */
+  inline?: boolean;
   onPlayNow: () => void;
   onStay: () => void;
-}> = ({ noticeRef, seconds, total, next, current, onPlayNow, onStay }) => {
+}> = ({ noticeRef, seconds, total, next, current, inline, onPlayNow, onStay }) => {
   const label = labelOf(next);
   const episode = next.info?.episode !== undefined;
   const newSeason = episode && current?.info?.season !== undefined && next.info?.season !== undefined
@@ -69,7 +73,7 @@ export const UpNextNotice: React.FC<{
   const context = episode ? [label.series, season || (next.info?.season !== undefined ? `Season ${next.info.season}` : null)].filter(Boolean).join(' · ') : null;
 
   return (
-    <div ref={noticeRef} className="absolute bottom-24 right-3 sm:right-4 z-40 w-80 max-w-[90%] bg-gray-900/95 border border-gray-700 rounded-lg p-4 shadow-2xl">
+    <div ref={noticeRef} className={`${inline ? 'mt-3 w-full' : 'absolute bottom-24 right-3 sm:right-4 z-40 w-80 max-w-[90%] shadow-2xl'} bg-gray-900/95 border border-gray-700 rounded-lg p-4`}>
       <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">{heading}</p>
       <p className="mt-1 flex items-baseline min-w-0">
         <span className="text-xl font-semibold text-white truncate">{episode ? label.title : fullTitleOf(next)}</span>

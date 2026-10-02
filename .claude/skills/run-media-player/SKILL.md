@@ -168,8 +168,8 @@ Both suites pass (95 server tests, 94 web tests on 2026-09-14) and typecheck pri
 - **Continue watching is on Home**, which shows while nothing plays: `button Home`
   closes the file (saving its position) and `continueWatching` reads the cards. It
   lists positions >30s in with >30s left: use `Long/Documentary.mp4`.
-- **lucide-react icons have no per-icon class**; a search hit's kind is its colour
-  class (`text-purple-400` = audio).
+- **A search hit is a `button[data-result]`** carrying `data-path` and `data-kind`
+  (`audio`/`video`); the row itself shows a tidied name under its folder.
 - **Nothing leaves the machine**: the server gets a clean env (no provider keys) and
   `SUBSCENE_URL=http://127.0.0.1:9`, which it refuses to fetch. Download flows go
   through `fake-subtitles`.

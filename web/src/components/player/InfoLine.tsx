@@ -34,7 +34,9 @@ export const InfoLine: React.FC<{
   top: FileNode | null;
   bottom: FileNode | null;
   onReveal?: (path: string) => void;
-}> = ({ file, top, bottom, onReveal }) => {
+  /** Buttons under the facts - on a phone, where the bar hides. */
+  chips?: React.ReactNode;
+}> = ({ file, top, bottom, onReveal, chips }) => {
   const label = labelOf(file);
   const info = file.info;
   const folders = foldersOf(file.path);
@@ -68,6 +70,7 @@ export const InfoLine: React.FC<{
         )}
         <h2 className="text-base font-medium text-white truncate" title={file.name}>{title}</h2>
         {facts.length > 0 && <p className="text-xs text-gray-400 truncate">{facts.join(' · ')}</p>}
+        {chips && <div className="flex flex-wrap items-center">{chips}</div>}
       </div>
       {!file.mimeType?.startsWith('audio/') && (
         <p className="hidden sm:block flex-none ml-4 text-xs text-gray-400 text-right">{showing || 'No subtitles'}</p>

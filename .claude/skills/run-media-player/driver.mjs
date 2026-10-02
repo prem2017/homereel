@@ -283,7 +283,8 @@ const screenshot = async (name = 'shot') => {
 const commands = {
   async open(arg) {
     await page.goto(`${server.base}${arg || '/'}`);
-    await page.waitForFunction(() => document.querySelector('[role="treeitem"], [role="alert"]')
+    // The library's rows, an error, or Home - a phone keeps the library in a closed drawer.
+    await page.waitForFunction(() => document.querySelector('[role="treeitem"], [role="alert"], [data-home]')
       || /Could not load media|No video or audio files/.test(document.body.innerText), null, { timeout: 20000 });
     return page.url();
   },
@@ -322,15 +323,12 @@ const commands = {
     await input.fill(query);
     await answered;
     await sleep(200);
-    const hits = await page.$$eval('button', (buttons) => buttons
-      .map((b) => [b.querySelector(':scope > div.flex-col > span.text-xs'), b.querySelector(':scope > svg')])
-      .filter(([where]) => where)
-      // lucide-react adds no per-icon class; Header colours Music purple, Film blue.
-      .map(([where, icon]) => `${icon && icon.getAttribute('class').includes('purple') ? 'audio' : 'video'}  ${where.textContent}`));
+    const hits = await page.$$eval('button[data-result]', (buttons) => buttons
+      .map((b) => `${b.getAttribute('data-kind')}  ${b.getAttribute('data-path')}`));
     return hits.length ? hits.join('\n') : 'no results';
   },
   async pick(rel) {
-    const hit = page.locator('button').filter({ has: page.locator(`span.text-xs:text-is(${JSON.stringify(rel)})`) }).first();
+    const hit = page.locator(`button[data-result][data-path=${JSON.stringify(rel)}]`).first();
     try {
       await hit.waitFor({ timeout: 3000 });
     } catch {

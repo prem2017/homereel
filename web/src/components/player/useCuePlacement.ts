@@ -48,7 +48,7 @@ const PICTURE_EDGE_MARGIN = 0.04;
  */
 export const useCuePlacement = ({
   videoRef, styleRef, controlBarRef, resumeNoticeRef, upNextRef, subPanelBodyRef,
-  bottomFontSize, showControls, filePath, resumedFrom, upNextIn, showSubSettings, isFullscreen,
+  bottomFontSize, showControls, filePath, resumedFrom, upNextIn, showSubSettings, isFullscreen, compact,
 }: {
   videoRef: React.RefObject<HTMLVideoElement>;
   styleRef: React.RefObject<HTMLStyleElement>;
@@ -63,6 +63,8 @@ export const useCuePlacement = ({
   upNextIn: number | null;
   showSubSettings: boolean;
   isFullscreen: boolean;
+  /** A phone: the subtitle panel is a sheet across the screen, not beside the cue. */
+  compact: boolean;
 }) => {
   // The top subtitle, which is not in that strip but needs the same measurement
   // from the other end. Mutable rather than a plain RefObject because it is set
@@ -189,7 +191,7 @@ export const useCuePlacement = ({
       // the foot of the picture, which reads as falling off the bottom edge.
       + pictureHeight * PICTURE_EDGE_MARGIN,
     );
-    const shift = subPanelBodyRef.current
+    const shift = subPanelBodyRef.current && !compact
       ? subPanelBodyRef.current.getBoundingClientRect().width / 2
       : 0;
 
@@ -209,7 +211,7 @@ export const useCuePlacement = ({
     // Everything after the first two is a *recompute trigger* rather than a value
     // this reads: each one changes the size or presence of something measured
     // above, so the numbers are wrong until it runs again.
-  }, [bottomFontSize, showControls, filePath, resumedFrom, upNextIn, showSubSettings, isFullscreen]);
+  }, [bottomFontSize, showControls, filePath, resumedFrom, upNextIn, showSubSettings, isFullscreen, compact]);
 
   useEffect(() => { writeCueStyle(); }, [writeCueStyle]);
 

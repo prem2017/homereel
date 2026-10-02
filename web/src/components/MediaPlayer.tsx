@@ -10,6 +10,7 @@ import { getStreamUrl } from '../services/api';
 import { FileNode } from '../types';
 import { CueText } from './player/CueText';
 import { ControlBar } from './player/ControlBar';
+import { CompactControls } from './player/CompactControls';
 import { SubtitlePanel } from './player/SubtitlePanel';
 import { ShortcutSheet } from './player/ShortcutSheet';
 import { ResumeNotice, UpNextNotice } from './player/Notices';
@@ -43,6 +44,9 @@ interface MediaPlayerProps {
   onProgress?: () => void;
   /** Open the library at this file. A stable callback, like the others. */
   onReveal?: (path: string) => void;
+  /** A phone-sized window (below 768px): controls over the picture, a box the
+   *  film's shape, notices below it. Desktop and TV never see it. */
+  compact?: boolean;
 }
 
 type Status = 'idle' | 'loading' | 'buffering' | 'ready' | 'error';
@@ -59,7 +63,7 @@ const UP_NEXT_SECONDS = 6;
 
 const MediaPlayerView: React.FC<MediaPlayerProps> = ({
   file, siblings = [], onEnded, autoPlay, onNext, onPrevious,
-  next, onSubtitlesSaved, onProgress, onReveal
+  next, onSubtitlesSaved, onProgress, onReveal, compact = false
 }) => {
   const filePath = file ? file.path : null;
   const fileName = file ? file.name : null;
@@ -97,6 +101,11 @@ const MediaPlayerView: React.FC<MediaPlayerProps> = ({
   const [showRemaining, setShowRemaining] = useState(() => readPref(PREF.remaining, 0) === 1);
   const showRemainingRef = useRef(showRemaining);
   const { isFullscreen, toggleFullscreen } = useFullscreen(containerRef, videoRef);
+
+  // The film's height over its width, for a phone's box to take its shape. 16:9
+  // until the metadata says, and kept between 1:3 and 5:4 so a portrait clip
+  // leaves the page somewhere to scroll.
+  const [aspect, setAspect] = useState(9 / 16);
 
   // Playback status
   const [status, setStatus] = useState<Status>('idle');
@@ -185,7 +194,10 @@ const MediaPlayerView: React.FC<MediaPlayerProps> = ({
   useEffect(() => {
     if (!showSubSettings) return;
     const onClickAway = (e: MouseEvent) => {
-      if (!subPanelRef.current?.contains(e.target as Node)) setShowSubSettings(false);
+      const target = e.target as Element;
+      // Its own wrapper, or another button that toggles it (the phone's chip).
+      if (subPanelRef.current?.contains(target) || (target.closest && target.closest('[data-subtitle-toggle]'))) return;
+      setShowSubSettings(false);
     };
     document.addEventListener('click', onClickAway);
     return () => document.removeEventListener('click', onClickAway);
@@ -195,7 +207,7 @@ const MediaPlayerView: React.FC<MediaPlayerProps> = ({
   // the bottom strip - see useCuePlacement. `topSubtitleRef` places the overlay.
   const { topSubtitleRef } = useCuePlacement({
     videoRef, styleRef, controlBarRef, resumeNoticeRef, upNextRef, subPanelBodyRef,
-    bottomFontSize, showControls, filePath, resumedFrom, upNextIn, showSubSettings, isFullscreen,
+    bottomFontSize, showControls, filePath, resumedFrom, upNextIn, showSubSettings, isFullscreen, compact,
   });
 
   // Warn before streaming gigabytes of something the browser will refuse. canPlayType
@@ -219,6 +231,7 @@ const MediaPlayerView: React.FC<MediaPlayerProps> = ({
       // The last file's length and position, until this one reports its own -
       // a file that never loads would otherwise wear them.
       setDuration(0);
+      setAspect(9 / 16);
       if (progressRef.current) progressRef.current.value = '0';
       writeClock(0, NaN);
       // Whatever was queued belongs to the file that just finished.
@@ -442,6 +455,7 @@ const MediaPlayerView: React.FC<MediaPlayerProps> = ({
     const video = videoRef.current;
     if (!video) return;
     setDuration(video.duration);
+    if (video.videoWidth > 0) setAspect(Math.min(1.25, Math.max(1 / 3, video.videoHeight / video.videoWidth)));
 
     if (!filePath) return;
     // The length is the other half of "how far through this is": the library
@@ -626,11 +640,54 @@ const MediaPlayerView: React.FC<MediaPlayerProps> = ({
   const summaryOf = (sub: FileNode | null) => (sub ? (languageOfSubtitle(sub.name) || 'on').toUpperCase() : null);
   const subtitleSummary = [summaryOf(slots.bottomSubtitle), summaryOf(slots.topSubtitle)].filter(Boolean).join(' · ');
 
-  return (
-    <div className="flex flex-col h-full min-h-0">
+  const toggleSubtitlePanel = () => setShowSubSettings(!showSubSettings);
+
+  // The subtitle button and its panel, in whichever bar is showing. Its panel
+  // opens above it - or, on a phone, as a sheet from the bottom of the screen,
+  // since the box is too short to hold it. Bounded by this wrapper for
+  // click-away; another button that toggles it is marked data-subtitle-toggle.
+  const subtitleControl = isAudio ? undefined : (
+    <div className={`relative ${compact ? '' : 'ml-3'}`} ref={subPanelRef}>
+      <button
+        onClick={toggleSubtitlePanel}
+        aria-label="Subtitles"
+        aria-expanded={showSubSettings}
+        title="Subtitles"
+        className={`flex items-center rounded px-1 hover:text-blue-400 focus:outline-none focus:bg-blue-700 transition ${showSubSettings ? 'text-blue-400' : 'text-white'}`}
+      >
+        <Subtitles size={22} />
+        {subtitleSummary && <span className="ml-1.5 text-xs font-semibold">{subtitleSummary}</span>}
+      </button>
+
+      {showSubSettings && (
+        <SubtitlePanel
+          bodyRef={subPanelBodyRef} videoPath={filePath} videoName={fileName || ''} slots={slots} online={online}
+          topFontSize={topFontSize} onTopFontSize={setTopFontSize}
+          bottomFontSize={bottomFontSize} onBottomFontSize={setBottomFontSize}
+          sheet={compact}
+        />
+      )}
+    </div>
+  );
+
+  const resumeNotice = resumedFrom !== null && !problem && (
+    <ResumeNotice
+      noticeRef={resumeNoticeRef} visible={showControls} resumedFrom={resumedFrom} inline={compact}
+      onStartOver={startOver} onDismiss={() => setResumedFrom(null)}
+    />
+  );
+
+  const upNextNotice = upNextIn !== null && next && (
+    <UpNextNotice
+      noticeRef={upNextRef} seconds={upNextIn} total={UP_NEXT_SECONDS} next={next} current={file} inline={compact}
+      onPlayNow={playNextNow} onStay={() => setUpNextIn(null)}
+    />
+  );
+
+  const picture = (
     <div
       ref={containerRef}
-      className={`relative bg-black group w-full flex-1 min-h-0 flex flex-col justify-center overflow-hidden rounded-lg shadow-2xl ${isFullscreen ? 'h-screen w-screen rounded-none' : ''}`}
+      className={`bg-black group w-full flex flex-col justify-center overflow-hidden rounded-lg shadow-2xl ${compact ? 'absolute inset-0' : 'relative flex-1 min-h-0'} ${isFullscreen ? 'h-screen w-screen rounded-none' : ''}`}
       onMouseLeave={() => isPlaying && setShowControls(false)}
     >
       {/* Rule text is written from an effect, so this element is never re-rendered. */}
@@ -717,19 +774,8 @@ const MediaPlayerView: React.FC<MediaPlayerProps> = ({
         </div>
       )}
 
-      {resumedFrom !== null && !problem && (
-        <ResumeNotice
-          noticeRef={resumeNoticeRef} visible={showControls} resumedFrom={resumedFrom}
-          onStartOver={startOver} onDismiss={() => setResumedFrom(null)}
-        />
-      )}
-
-      {upNextIn !== null && next && (
-        <UpNextNotice
-          noticeRef={upNextRef} seconds={upNextIn} total={UP_NEXT_SECONDS} next={next} current={file}
-          onPlayNow={playNextNow} onStay={() => setUpNextIn(null)}
-        />
-      )}
+      {!compact && resumeNotice}
+      {!compact && upNextNotice}
 
       {/* What a key just did. Centred by a full-width row (no transforms on the TV),
           at the top, out of the bottom strip the cue placement measures. */}
@@ -751,46 +797,77 @@ const MediaPlayerView: React.FC<MediaPlayerProps> = ({
         </div>
       )}
 
+      {compact ? (
+        <CompactControls
+          barRef={controlBarRef} progressRef={progressRef} timeLabelRef={timeLabelRef} totalLabelRef={totalLabelRef}
+          playedRef={playedRef} bufferedRef={bufferedRef}
+          visible={showControls} duration={duration} isPlaying={isPlaying} isMuted={isMuted}
+          playbackRate={playbackRate} isFullscreen={isFullscreen}
+          showRemaining={showRemaining} onToggleRemaining={() => setShowRemaining(on => !on)}
+          subtitles={subtitleControl}
+          onPrevious={onPrevious} onNext={onNext} onSkip={skip} onTogglePlay={togglePlay} onToggleMute={toggleMute}
+          onCycleRate={cyclePlaybackRate} onShowHelp={() => setShowHelp(true)}
+          onToggleFullscreen={isAudio ? undefined : toggleFullscreen}
+          onScrubStart={handleScrubStart} onScrubChange={handleScrubChange} onScrubCommit={handleScrubCommit}
+        />
+      ) : (
       <ControlBar
         barRef={controlBarRef} progressRef={progressRef} timeLabelRef={timeLabelRef} totalLabelRef={totalLabelRef}
         playedRef={playedRef} bufferedRef={bufferedRef}
         visible={showControls} duration={duration} isPlaying={isPlaying} isMuted={isMuted} volume={volume}
         playbackRate={playbackRate} isFullscreen={isFullscreen}
         showRemaining={showRemaining} onToggleRemaining={() => setShowRemaining(on => !on)}
-        subtitles={isAudio ? undefined : (
-          // In the bar with every other control, saying which languages are on.
-          // Its panel opens above it. Bounded by this wrapper for click-away.
-          <div className="relative ml-3" ref={subPanelRef}>
-            <button
-              onClick={(e) => { e.stopPropagation(); setShowSubSettings(!showSubSettings); }}
-              aria-label="Subtitles"
-              aria-expanded={showSubSettings}
-              title="Subtitles"
-              className={`flex items-center rounded px-1 hover:text-blue-400 focus:outline-none focus:bg-blue-700 transition ${showSubSettings ? 'text-blue-400' : 'text-white'}`}
-            >
-              <Subtitles size={22} />
-              {subtitleSummary && <span className="ml-1.5 text-xs font-semibold">{subtitleSummary}</span>}
-            </button>
-
-            {showSubSettings && (
-              <SubtitlePanel
-                bodyRef={subPanelBodyRef} videoPath={filePath} videoName={fileName || ''} slots={slots} online={online}
-                topFontSize={topFontSize} onTopFontSize={setTopFontSize}
-                bottomFontSize={bottomFontSize} onBottomFontSize={setBottomFontSize}
-              />
-            )}
-          </div>
-        )}
+        subtitles={subtitleControl}
         onPrevious={onPrevious} onNext={onNext} onSkip={skip} onTogglePlay={togglePlay} onToggleMute={toggleMute}
         onVolumeChange={handleVolumeChange} onCycleRate={cyclePlaybackRate} onShowHelp={() => setShowHelp(true)}
         onToggleFullscreen={isAudio ? undefined : toggleFullscreen}
         onScrubStart={handleScrubStart} onScrubChange={handleScrubChange} onScrubCommit={handleScrubCommit}
       />
+      )}
 
       {showHelp && <ShortcutSheet onClose={() => setShowHelp(false)} />}
     </div>
+  );
 
-    {file && <InfoLine file={file} top={slots.topSubtitle} bottom={slots.bottomSubtitle} onReveal={onReveal} />}
+  const info = file && (
+    <InfoLine
+      file={file} top={slots.topSubtitle} bottom={slots.bottomSubtitle} onReveal={onReveal}
+      chips={compact && !isAudio ? (
+        // On a phone the bar hides; these stay, under the film.
+        <>
+          <button type="button" onClick={toggleSubtitlePanel} aria-label="Subtitle settings" data-subtitle-toggle=""
+            className="mr-2 mt-2 flex items-center text-xs px-2 py-1 rounded-full border border-gray-600 text-gray-200 focus:outline-none focus:bg-blue-700">
+            <Subtitles size={14} className="mr-1" />{subtitleSummary || 'Off'}
+          </button>
+          <button type="button" onClick={cyclePlaybackRate} aria-label={`Playback speed ${playbackRate}x`}
+            className={`mt-2 text-xs px-2 py-1 rounded-full border focus:outline-none focus:bg-blue-700 ${playbackRate === 1 ? 'border-gray-600 text-gray-200' : 'border-blue-400 bg-blue-900 text-blue-200'}`}>
+            {playbackRate}×
+          </button>
+        </>
+      ) : undefined}
+    />
+  );
+
+  // A phone: the box takes the film's shape (a padded wrapper - the aspect-ratio
+  // property is newer than the browsers this has to run on), and what would sit
+  // over a picture that small - the resume notice, Up next - sits below it.
+  if (compact) {
+    return (
+      <div>
+        <div className="relative w-full" style={{ paddingBottom: `${(aspect * 100).toFixed(2)}%` }}>
+          {picture}
+        </div>
+        {resumeNotice}
+        {upNextNotice}
+        {info}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-full min-h-0">
+      {picture}
+      {info}
     </div>
   );
 };
