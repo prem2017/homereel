@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Loader2, RefreshCw } from 'lucide-react';
+import { AlertTriangle, Loader2, RefreshCw } from 'lucide-react';
 import { Header } from './components/Header';
 import { FileTree, rowDomId } from './components/FileTree';
 import { MediaPlayer } from './components/MediaPlayer';
@@ -166,6 +166,19 @@ function App() {
 
     return extra.length > 0 ? [...currentFileSiblings, ...extra] : currentFileSiblings;
   }, [currentFile, currentFileSiblings, savedSubtitles]);
+
+  // The library opened at a file: the sidebar shown if it was hidden (the tree
+  // opens the folders above whatever is playing), and the row brought into view.
+  // A stable identity, because the player is memoized and takes it as a prop.
+  const revealInLibrary = useCallback((path: string) => {
+    setSidebarOpen(true);
+    window.setTimeout(() => {
+      const row = document.getElementById(rowDomId(path));
+      if (!row) return;
+      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      row.focus();
+    }, 100);
+  }, []);
 
   const handleSearchResultSelect = (result: SearchResult) => {
     const fileNode: FileNode = {
@@ -441,8 +454,32 @@ function App() {
             grow a scrollbar, parking the details below the fold. */}
         <div className="flex-1 flex flex-col p-3 md:p-4 overflow-hidden min-w-0 min-h-0">
           <div className="flex-1 min-h-0">
-            {/* A crash in the player stays in the player: the library keeps
-                working, and picking another file tries again. */}
+            {/* A library that failed to load is said here too, not only in the
+                sidebar - a phone hides the sidebar, and "Select media to play"
+                over a library that cannot be read sends people looking for files
+                that the server cannot see. */}
+            {!currentFile && loadError ? (
+              <div role="alert" className="flex items-center justify-center h-full bg-black rounded-lg px-6 py-6 overflow-y-auto">
+                <div className="max-w-lg text-center">
+                  <AlertTriangle size={40} className="mx-auto mb-3 text-amber-400" />
+                  <p className="text-lg font-semibold text-white">HomeReel can't load your library</p>
+                  <p className="mt-2 text-sm text-gray-300 break-words">{loadError}</p>
+                  <p className="mt-2 text-sm text-gray-400">
+                    Check that <code className="text-gray-200">MEDIA_DIR</code> in your{' '}
+                    <code className="text-gray-200">.env</code> points at a folder that exists, then restart the server.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => { if (!loading) loadLibrary(); }}
+                    className="mt-4 text-sm px-4 py-2 rounded bg-blue-700 text-white hover:bg-blue-600 focus:outline-none focus:bg-blue-500"
+                  >
+                    Try again
+                  </button>
+                </div>
+              </div>
+            ) : (
+            /* A crash in the player stays in the player: the library keeps
+               working, and picking another file tries again. */
             <ErrorBoundary what="player" resetKey={currentFile?.path || null}>
               <MediaPlayer
                 filePath={currentFile?.path || null}
@@ -456,8 +493,10 @@ function App() {
                 onNext={nextFile ? handleNext : undefined}
                 nextName={nextFile?.name || null}
                 onPrevious={currentIndex > 0 ? handlePrevious : undefined}
+                onReveal={revealInLibrary}
               />
             </ErrorBoundary>
+            )}
           </div>
 
           {currentFile && (

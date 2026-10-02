@@ -36,6 +36,7 @@ put('Les Misérables (2012).mp4');
 put('फ़िल्म.mp4');
 put('Old/Amélie.srt', Buffer.from('1\r\n00:00:01,000 --> 00:00:02,000\r\nCaf\xe9 cr\xe8me\r\n', 'latin1'));
 put('notes.txt', 'not media');
+put('Ranges/clip.mp4', '0123456789');
 
 // Every request is logged; none of that is what these tests are about.
 mock.method(console, 'log', () => { });
@@ -148,5 +149,44 @@ test('subtitle search and download need a video that is really there', async () 
     for (const video of ['No Such Film.mkv', 'notes.txt']) {
         const downloaded = await post('/api/subtitles/download', { path: video, provider: 'subscene', ref: '1234567' });
         assert.strictEqual(downloaded.status, 404);
+    }
+});
+
+test('an unknown API path is a JSON 404, not the web page', async () => {
+    // The client shows the server's `error` field; index.html under a 200 reached
+    // it as a JSON parse error instead.
+    for (const response of [await get('/api/does-not-exist'), await post('/api/files/nope', {})]) {
+        assert.strictEqual(response.status, 404);
+        assert.match(response.headers.get('content-type'), /application\/json/);
+        assert.match((await response.json()).error, /No such API endpoint/);
+    }
+});
+
+const ranged = (range) => get(`/api/stream?${query({ path: 'Ranges/clip.mp4' })}`, { headers: { Range: range } });
+
+test('streams the byte range asked for', async () => {
+    const response = await ranged('bytes=2-4');
+    assert.strictEqual(response.status, 206);
+    assert.strictEqual(response.headers.get('content-range'), 'bytes 2-4/10');
+    assert.strictEqual(await response.text(), '234');
+});
+
+test('reads a suffix range as the end of the file', async () => {
+    // bytes=-N is the last N bytes, how some players read an MP4's index.
+    const tail = await ranged('bytes=-3');
+    assert.strictEqual(tail.status, 206);
+    assert.strictEqual(tail.headers.get('content-range'), 'bytes 7-9/10');
+    assert.strictEqual(await tail.text(), '789');
+
+    // Longer than the file: all of it.
+    const all = await ranged('bytes=-50');
+    assert.strictEqual(all.headers.get('content-range'), 'bytes 0-9/10');
+});
+
+test('refuses a range it cannot satisfy', async () => {
+    for (const range of ['bytes=10-', 'bytes=-0', 'bytes=-', 'bytes=5-2', 'bytes=x-y']) {
+        const response = await ranged(range);
+        assert.strictEqual(response.status, 416, range);
+        assert.strictEqual(response.headers.get('content-range'), 'bytes */10');
     }
 });

@@ -19,6 +19,7 @@ import { useSubtitleDownload, SavedSubtitles, reusableSubtitle } from '../hooks/
 import { useSubsceneId, SubsceneIdState } from '../hooks/useSubsceneId';
 import { FileNode, SubtitleCandidate } from '../types';
 import { CueText } from './player/CueText';
+import { describePlaybackError, PlaybackProblem } from '../utils/playbackError';
 
 interface MediaPlayerProps {
   filePath: string | null;
@@ -40,6 +41,8 @@ interface MediaPlayerProps {
    *  this is what lets "continue watching" show the film playing now rather than
    *  the one before it. Fires at the save cadence below, not per frame. */
   onProgress?: () => void;
+  /** Open the library at this file. A stable callback, like the others. */
+  onReveal?: (path: string) => void;
 }
 
 type Status = 'idle' | 'loading' | 'buffering' | 'ready' | 'error';
@@ -219,22 +222,9 @@ const SyncRow: React.FC<{ offset: number; onNudge: (delta: number) => void }> = 
   );
 };
 
-// MEDIA_ERR_* translated into something readable from across a room. Codec trouble is
-// by far the likeliest outcome on a TV, so name the type rather than saying "error".
-const describeError = (video: HTMLVideoElement, mimeType: string | null): string => {
-  const what = mimeType || 'this file';
-  switch (video.error?.code) {
-    case 1: return 'Playback was stopped before it started.';
-    case 2: return 'Lost the connection while streaming. Check the network and try again.';
-    case 3: return `Could not decode ${what}. The video uses a codec this browser does not support.`;
-    case 4: return `This browser cannot play ${what}. Converting it to MP4 (H.264 video, AAC audio) will work.`;
-    default: return 'Playback failed for an unknown reason.';
-  }
-};
-
 const MediaPlayerView: React.FC<MediaPlayerProps> = ({
   filePath, fileName, mimeType, siblings = [], onEnded, autoPlay, onNext, onPrevious,
-  nextName, onSubtitlesSaved, onProgress
+  nextName, onSubtitlesSaved, onProgress, onReveal
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -270,7 +260,8 @@ const MediaPlayerView: React.FC<MediaPlayerProps> = ({
 
   // Playback status
   const [status, setStatus] = useState<Status>('idle');
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  // What went wrong, worded for this file, and the browser's code for it.
+  const [problem, setProblem] = useState<{ said: PlaybackProblem; code: number | null } | null>(null);
   const [formatWarning, setFormatWarning] = useState<string | null>(null);
   const [resumedFrom, setResumedFrom] = useState<number | null>(null);
 
@@ -886,8 +877,13 @@ const MediaPlayerView: React.FC<MediaPlayerProps> = ({
   useEffect(() => {
     if (videoRef.current && filePath) {
       setStatus('loading');
-      setErrorMessage(null);
+      setProblem(null);
       setResumedFrom(null);
+      // The last file's length and position, until this one reports its own -
+      // a file that never loads would otherwise wear them.
+      setDuration(0);
+      if (progressRef.current) progressRef.current.value = '0';
+      if (timeLabelRef.current) timeLabelRef.current.textContent = formatTime(0);
       // Whatever was queued belongs to the file that just finished.
       setUpNextIn(null);
       cueIndexRef.current = 0;
@@ -1215,11 +1211,25 @@ const MediaPlayerView: React.FC<MediaPlayerProps> = ({
     // Said out loud before it happens, when there is somewhere to go. The jump
     // to the next episode was instant and silent, which is fine when it is what
     // you wanted and impossible to stop when it is not.
-    if (nextName && onEnded) {
+    //
+    // Not between songs: an album is meant to run on, and six seconds of silence
+    // with a notice over it between every track is a fault, not a courtesy.
+    if (nextName && onEnded && !mimeType?.startsWith('audio')) {
       setUpNextIn(UP_NEXT_SECONDS);
       return;
     }
     onEnded && onEnded();
+  };
+
+  // The same file again, from wherever the browser had got to. A network drop
+  // is the case it is for; a codec it cannot decode fails the same way twice.
+  const retry = () => {
+    const media = videoRef.current;
+    if (!media) return;
+    setProblem(null);
+    setStatus('loading');
+    media.load();
+    safePlay(media);
   };
 
   const playNextNow = () => {
@@ -1339,14 +1349,14 @@ const MediaPlayerView: React.FC<MediaPlayerProps> = ({
     onPlaying: () => setStatus('ready'),
     onProgress: paintBuffered,
     onError: (e: React.SyntheticEvent<HTMLMediaElement>) => {
-      const media = e.currentTarget as HTMLVideoElement;
-      const message = describeError(media, mimeType);
+      const code = e.currentTarget.error?.code;
+      const said = describePlaybackError(code, fileName, mimeType);
       setStatus('error');
-      setErrorMessage(message);
+      setProblem({ said, code: code || null });
       // The TV browser has no devtools, so the server log is the only place this can
       // be read back from.
-      reportToServer(`TV Video Error: code ${media.error?.code} on file: ${filePath} (${mimeType}) - ${message}`);
-      console.error("Video Error:", message);
+      reportToServer(`TV Video Error: code ${code} on file: ${filePath} (${mimeType}) - ${said.title}. ${said.detail}`);
+      console.error('Video Error:', said.title);
     },
   };
 
@@ -1418,7 +1428,7 @@ const MediaPlayerView: React.FC<MediaPlayerProps> = ({
       )}
 
       {/* Buffering / loading */}
-      {isBusy && !errorMessage && (
+      {isBusy && !problem && (
         <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none">
           <div className="bg-black/60 rounded-full p-4">
             <Loader2 size={40} className="text-white animate-spin" />
@@ -1426,20 +1436,51 @@ const MediaPlayerView: React.FC<MediaPlayerProps> = ({
         </div>
       )}
 
-      {/* Playback error - previously this was console-only, leaving a black rectangle */}
-      {errorMessage && (
-        <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/85 px-6">
-          <div className="max-w-lg text-center">
+      {/* Playback error - previously this was console-only, leaving a black rectangle.
+          Each way on is a button: a bad episode should not end the evening. */}
+      {problem && (
+        <div role="alert" className="absolute inset-0 z-40 flex items-center justify-center bg-black/85 px-6 overflow-y-auto">
+          <div className="max-w-lg text-center py-4">
             <AlertTriangle size={40} className="mx-auto mb-3 text-amber-400" />
-            <p className="text-lg font-semibold text-white">Can't play this file</p>
-            <p className="mt-2 text-sm text-gray-300">{errorMessage}</p>
-            <p className="mt-3 text-xs text-gray-500 font-mono break-all">{fileName}</p>
+            <p className="text-lg font-semibold text-white">{problem.said.title}</p>
+            <p className="mt-2 text-sm text-gray-300">{problem.said.detail}</p>
+            {problem.said.fix && <p className="mt-2 text-sm text-gray-300">{problem.said.fix}</p>}
+            <div className="mt-4 flex flex-wrap justify-center">
+              {onReveal && filePath && (
+                <button
+                  type="button"
+                  onClick={() => onReveal(filePath)}
+                  className="m-1 text-sm px-4 py-2 rounded border border-gray-600 text-gray-200 hover:bg-gray-800 focus:outline-none focus:bg-blue-700 focus:text-white"
+                >
+                  Show in library
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={retry}
+                className="m-1 text-sm px-4 py-2 rounded border border-gray-600 text-gray-200 hover:bg-gray-800 focus:outline-none focus:bg-blue-700 focus:text-white"
+              >
+                Try again
+              </button>
+              {onNext && (
+                <button
+                  type="button"
+                  onClick={onNext}
+                  className="m-1 text-sm px-4 py-2 rounded bg-blue-700 text-white hover:bg-blue-600 focus:outline-none focus:bg-blue-500"
+                >
+                  Play next
+                </button>
+              )}
+            </div>
+            <p className="mt-3 text-xs text-gray-500 font-mono break-all">
+              {fileName}{problem.code !== null && ` · browser error ${problem.code}`}
+            </p>
           </div>
         </div>
       )}
 
       {/* Format warning: the browser says no before we stream anything */}
-      {!errorMessage && formatWarning && (
+      {!problem && formatWarning && (
         <div className="absolute top-4 left-4 z-30 max-w-sm bg-amber-950/90 border border-amber-800 text-amber-100 text-xs rounded-md px-3 py-2">
           This browser reports no support for <span className="font-mono">{formatWarning}</span>. Playback may fail.
         </div>
@@ -1450,7 +1491,7 @@ const MediaPlayerView: React.FC<MediaPlayerProps> = ({
           Tailwind builds every transform out of custom properties, which
           Chromium 47 does not have, so on the TV this notice used to start at
           the middle of the screen and run off the right-hand edge. */}
-      {resumedFrom !== null && !errorMessage && (
+      {resumedFrom !== null && !problem && (
         <div ref={resumeNoticeRef} className={`absolute bottom-24 left-0 right-0 z-40 flex justify-center px-4 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
           <div className="flex items-center space-x-3 bg-gray-900/95 border border-gray-700 rounded-full pl-4 pr-2 py-2">
             <span className="text-sm text-gray-200">Resumed from {formatTime(resumedFrom)}</span>

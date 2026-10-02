@@ -220,13 +220,20 @@ app.get('/api/stream', (req, res) => {
     const mimeType = mime.lookup(filePath) || 'application/octet-stream';
 
     if (range) {
-        const parts = range.replace(/bytes=/, '').split('-');
-        const start = parseInt(parts[0], 10);
-        const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+        // The first range of a list; nothing here asks for more than one.
+        const [first, last] = range.replace(/bytes=/, '').split(',')[0].split('-');
+        let start = parseInt(first, 10);
+        let end = last ? parseInt(last, 10) : fileSize - 1;
+        // "bytes=-500" is the last 500 bytes - how some players read an MP4's
+        // index from the end of the file.
+        if (first.trim() === '' && last) {
+            start = Math.max(0, fileSize - parseInt(last, 10));
+            end = fileSize - 1;
+        }
 
         // A malformed or out-of-bounds Range must not become a negative-length
         // read; answer per RFC 7233 instead.
-        if (Number.isNaN(start) || start >= fileSize || end < start) {
+        if (Number.isNaN(start) || Number.isNaN(end) || start >= fileSize || end < start) {
             return res.writeHead(416, { 'Content-Range': `bytes */${fileSize}` }).end();
         }
         const safeEnd = Math.min(end, fileSize - 1);
@@ -382,6 +389,13 @@ app.post('/api/subtitles/download', async (req, res) => {
         console.error(`Subtitle download failed: ${e.message}`);
         res.status(e.status || 502).json({ error: e.message });
     }
+});
+
+// An API path nothing answers is a JSON 404, not the web page. The client shows
+// the server's own `error` field, and index.html under a 200 reached it as a JSON
+// parse error instead - on a TV with no devtools, the only clue there is.
+app.use('/api', (req, res) => {
+    res.status(404).json({ error: `No such API endpoint: ${req.method} ${req.baseUrl}${req.path}` });
 });
 
 // Vite gives every built asset a content hash, so a changed file always gets a

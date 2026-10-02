@@ -204,7 +204,10 @@ SD_Au-Service-De-La-France-S01E01_fr3.srt     resolution omitted when unknown
 - **Loading is a third state**: `loading → loadError → empty → tree`. Without it a
   slow first scan reads as an empty library. Same for any new async list.
 - `services/api.ts` throws with the server's own `error` field, so messages reach a
-  TV with no devtools.
+  TV with no devtools. An `/api` path nothing serves answers a JSON 404, never
+  `index.html` (the SPA fallback is for page routes only).
+- A library that fails to load fills the main area too (with Try again), not just
+  the sidebar card - a phone hides the sidebar.
 - **Crashes are contained and reported.** `ErrorBoundary` wraps the app and,
   separately, the player (reset by file path, so picking another file retries).
   `main.tsx` registers `error`/`unhandledrejection` before the first render. All
@@ -349,7 +352,12 @@ need an account to watch their own files.
 
 - **Autoplay-next goes through a toast.** `handleEnded` sets `upNextIn` only when
   there is a `nextName`; an effect counts it down, then `onEnded` fires. Without a
-  `nextName` it jumps at once (right for the last file).
+  `nextName` it jumps at once (right for the last file), and so does audio: an
+  album runs on, it does not pause six seconds between tracks.
+- **A failed file says what to do** (`describePlaybackError` in
+  `utils/playbackError.ts`): the advice follows the container, so an MP4 is never
+  told to become an MP4. The overlay offers Show in library (`onReveal`), Try again
+  and Play next; the line still goes to `/api/log`.
 - **`FileTree`'s root is `flex-1 min-h-0`, not `h-full`**, or the last rows hang off
   screen beside its sidebar siblings. Same trap for the details card under the player.
 - `scripts/run-dev` backgrounds both processes and `wait`s: bash defers traps during
