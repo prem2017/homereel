@@ -10,12 +10,24 @@ relative to the repo root.
 
 ## Prerequisites
 
-Node (the test suites need 20.19+ or 22.12+), npm, ffmpeg. The first run needs the
-network: npm fetches playwright-core, and Playwright fetches its Chromium if missing.
+Node (the test suites need 20.19+ or 22.12+), npm, ffmpeg with libvpx and
+libvorbis. The first run needs the network: npm fetches playwright-core, and
+Playwright fetches its Chromium if missing.
 
 ```bash
 node --version && ffmpeg -version | head -1
 ```
+
+Where that download is blocked, point the driver at a Chromium already on the
+machine, and at an ffmpeg that is not on `PATH` if need be:
+
+```bash
+export RUN_MP_CHROMIUM=/opt/pw-browsers/chromium   # any Chromium or Chrome binary
+export RUN_MP_FFMPEG=/path/to/ffmpeg               # default: ffmpeg on PATH
+```
+
+The fixtures are VP8/Vorbis WebM (under their `.mp4` names), which every Chromium
+plays, so a build without H.264 works as well as Playwright's own.
 
 ## Setup
 
@@ -61,10 +73,15 @@ EOF
 - Server log: `$TMPDIR/run-media-player/server.log` — every request, plus
   `[REMOTE ERROR]` lines the page reports.
 - Fixtures, copied fresh each run: `Show/Episode 1|2|10.mp4` (40s; Episode 1 has
-  `Episode 1.en.srt` in UTF-8 and `Episode 1.srt` in windows-1252),
+  `Episode 1.en.srt` in UTF-8 and `Episode 1.srt` in windows-1252, Episode 2 has
+  `Episode 2.fr.vtt` with no hours in its timings and `<i>`/`{\an8}` in its text),
   `Le Bureau des Légendes/Le.Bureau.des.Legendes.S01E01.1080p.mp4`,
   `Long/Documentary.mp4` (120s, long enough to resume), `Dark/Night.mp4` (black, for
-  `dark`), `Music/Chanson.flac`, `notes.txt` (must stay hidden).
+  `dark`), `TV/Dark Matter/Season 1/Dark.Matter.S01E01|S01E02.720p.mp4` and
+  `Season 2/Dark.Matter.S02E01.720p.mp4` (12s), `Films/Sintel (2010)/Sintel.2010.720p.mp4`
+  with a `poster.jpg`, `Films/Tears.of.Steel.2012.2160p.HEVC.mp4`, `Music/Chanson.flac`,
+  `Music/Chopin - Nocturnes/01|02|03 - ….flac` (8s) with a `cover.jpg`, and
+  `notes.txt` (must stay hidden).
 
 | command | does |
 |---|---|
@@ -163,5 +180,7 @@ Both suites pass (95 server tests, 94 web tests on 2026-09-14) and typecheck pri
   `search`; it now says `"…" is not in the current search results`.
 - **`FATAL:…process_singleton_posix.cc… Socket path too long: …/SingletonSocket`**:
   system Google Chrome launched with a long `TMPDIR`. Playwright's own headless
-  Chromium needs no singleton socket and plays H.264/AAC, so the driver uses it; do not
-  swap Chrome in.
+  Chromium needs no singleton socket, so the driver uses it; if `RUN_MP_CHROMIUM`
+  names system Chrome, shorten `TMPDIR` or point it at a Playwright build instead.
+- **`403` while downloading Chromium**, or `Executable doesn't exist` behind a proxy:
+  set `RUN_MP_CHROMIUM` (see Prerequisites).

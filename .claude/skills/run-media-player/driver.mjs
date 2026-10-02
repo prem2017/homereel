@@ -6,7 +6,9 @@
 //   node .claude/skills/run-media-player/driver.mjs serve      server only, until killed
 //
 // Env: RUN_MP_WORK (default $TMPDIR/run-media-player), RUN_MP_PORT (default: any
-// free port), RUN_MP_REBUILD=1 (force a frontend build).
+// free port), RUN_MP_REBUILD=1 (force a frontend build), RUN_MP_CHROMIUM (a
+// Chromium to launch instead of downloading Playwright's), RUN_MP_FFMPEG (default
+// `ffmpeg` on PATH).
 import { spawn, spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import fs from 'node:fs';
@@ -19,7 +21,8 @@ import { fileURLToPath } from 'node:url';
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const WORK = path.resolve(process.env.RUN_MP_WORK || path.join(os.tmpdir(), 'run-media-player'));
 const PLAYWRIGHT = 'playwright-core@1.59.1';
-const FIXTURES = 'fixtures-v2';
+const FIXTURES = 'fixtures-v3';
+const FFMPEG = process.env.RUN_MP_FFMPEG || 'ffmpeg';
 
 const say = (msg) => process.stderr.write(`[driver] ${msg}\n`);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -35,8 +38,16 @@ const run = (cmd, args, options = {}) => {
 
 // Named to exercise real behaviour: natural sort (1, 2, 10), an accented folder
 // holding a dotted release name, a windows-1252 subtitle beside a UTF-8 one, a
-// file long enough to resume (>30s in and >30s left), audio, a black clip with no
-// subtitles (for `dark`), and a non-media file the library must hide.
+// VTT without hours carrying markup, a file long enough to resume (>30s in and
+// >30s left), a two-season series, a film folder with a poster, an album with a
+// cover, a black clip with no subtitles (for `dark`), and a non-media file the
+// library must hide.
+//
+// Every video is VP8 and Vorbis in WebM, whatever its name says. Every Chromium
+// decodes those, while H.264 needs a build with proprietary codecs - which
+// open-source and preinstalled Chromiums often are not, and then every fixture
+// failed with a codec error. Chromium reads the container from the bytes, so the
+// .mp4 names play; they stay because real libraries are named that way.
 const ensureMedia = () => {
   const pristine = path.join(WORK, FIXTURES);
   if (!fs.existsSync(path.join(pristine, '.done'))) {
@@ -47,23 +58,38 @@ const ensureMedia = () => {
       fs.mkdirSync(path.dirname(file), { recursive: true });
       return file;
     };
+    const ffmpeg = (...args) => run(FFMPEG, ['-hide_banner', '-loglevel', 'error', '-y', ...args]);
     const tone = ['-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=22050'];
-    const video = (rel, seconds) => run('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y',
-      '-f', 'lavfi', '-i', 'testsrc=size=320x180:rate=10', ...tone, '-t', String(seconds),
-      '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '32k',
-      '-shortest', at(rel)]);
+    const vp8 = ['-c:v', 'libvpx', '-deadline', 'realtime', '-cpu-used', '8', '-b:v', '200k', '-pix_fmt', 'yuv420p'];
+    const video = (rel, seconds) => ffmpeg('-f', 'lavfi', '-i', 'testsrc=size=320x180:rate=10', ...tone,
+      '-t', String(seconds), ...vp8, '-c:a', 'libvorbis', '-b:a', '32k', '-shortest', '-f', 'webm', at(rel));
+    const copy = (from, ...to) => to.forEach((rel) => fs.copyFileSync(path.join(pristine, from), at(rel)));
+    const picture = (rel, size) => ffmpeg('-f', 'lavfi', '-i', `testsrc=size=${size}:rate=1`, '-frames:v', '1', at(rel));
+
     video('Show/Episode 1.mp4', 40);
-    for (const rel of ['Show/Episode 2.mp4', 'Show/Episode 10.mp4',
-      'Le Bureau des Légendes/Le.Bureau.des.Legendes.S01E01.1080p.mp4']) {
-      fs.copyFileSync(path.join(pristine, 'Show/Episode 1.mp4'), at(rel));
-    }
+    copy('Show/Episode 1.mp4', 'Show/Episode 2.mp4', 'Show/Episode 10.mp4',
+      'Le Bureau des Légendes/Le.Bureau.des.Legendes.S01E01.1080p.mp4');
     video('Long/Documentary.mp4', 120);
-    run('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-f', 'lavfi', '-i', 'color=c=black:s=320x180:r=10',
-      '-t', '40', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', at('Dark/Night.mp4')]);
-    run('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', ...tone, '-t', '20', at('Music/Chanson.flac')]);
+    ffmpeg('-f', 'lavfi', '-i', 'color=c=black:s=320x180:r=10', '-t', '40', ...vp8, '-f', 'webm', at('Dark/Night.mp4'));
+    ffmpeg(...tone, '-t', '20', at('Music/Chanson.flac'));
+
+    video('TV/Dark Matter/Season 1/Dark.Matter.S01E01.720p.mp4', 12);
+    copy('TV/Dark Matter/Season 1/Dark.Matter.S01E01.720p.mp4',
+      'TV/Dark Matter/Season 1/Dark.Matter.S01E02.720p.mp4', 'TV/Dark Matter/Season 2/Dark.Matter.S02E01.720p.mp4',
+      'Films/Sintel (2010)/Sintel.2010.720p.mp4', 'Films/Tears.of.Steel.2012.2160p.HEVC.mp4');
+    picture('Films/Sintel (2010)/poster.jpg', '200x300');
+
+    const album = 'Music/Chopin - Nocturnes';
+    ffmpeg('-f', 'lavfi', '-i', 'sine=frequency=330:sample_rate=22050', '-t', '8', at(`${album}/01 - Nocturne in E-flat major.flac`));
+    copy(`${album}/01 - Nocturne in E-flat major.flac`,
+      `${album}/02 - Nocturne in C-sharp minor.flac`, `${album}/03 - Nocturne in F minor.flac`);
+    picture(`${album}/cover.jpg`, '300x300');
+
     const srt = (text) => `1\n00:00:00,500 --> 00:00:39,000\n${text}\n`;
     fs.writeFileSync(at('Show/Episode 1.en.srt'), srt('Hello from the English file'));
     fs.writeFileSync(at('Show/Episode 1.srt'), Buffer.from(srt('Café crème, déjà vu'), 'latin1'));
+    // Hours left out, as WebVTT allows, and markup the overlay must draw rather than print.
+    fs.writeFileSync(at('Show/Episode 2.fr.vtt'), 'WEBVTT\n\n00:00.500 --> 00:39.000\n{\\an8}<i>Bonjour</i> tout le monde\n');
     fs.writeFileSync(at('notes.txt'), 'Not media. The library must not list this.\n');
     fs.writeFileSync(path.join(pristine, '.done'), '');
   }
@@ -142,12 +168,16 @@ const launchBrowser = async () => {
     run('npm', ['install', '--prefix', prefix, '--no-save', '--no-package-lock', '--no-audit', '--no-fund', PLAYWRIGHT]);
   }
   const { chromium } = createRequire(import.meta.url)(entry);
-  // Playwright's own headless Chromium plays H.264/AAC; system Chrome is not needed.
-  const options = { headless: true, args: ['--autoplay-policy=no-user-gesture-required', '--mute-audio'] };
+  // RUN_MP_CHROMIUM for a machine that cannot download Playwright's own build
+  // (an offline or proxied sandbox); the fixtures play in any Chromium.
+  const executablePath = process.env.RUN_MP_CHROMIUM || undefined;
+  const options = {
+    headless: true, executablePath, args: ['--autoplay-policy=no-user-gesture-required', '--mute-audio'],
+  };
   try {
     return await chromium.launch(options);
   } catch (e) {
-    if (!/Executable doesn't exist/.test(e.message)) throw e;
+    if (executablePath || !/Executable doesn't exist/.test(e.message)) throw e;
     say('downloading headless Chromium for playwright-core (one-time)');
     run(process.execPath, [path.join(entry, 'cli.js'), 'install', '--only-shell', 'chromium']);
     return chromium.launch(options);
@@ -384,7 +414,7 @@ const commands = {
     }
     const file = path.join(WORK, 'shots', 'dark.png');
     await page.locator(selector).first().screenshot({ path: file });
-    const gray = run('ffmpeg', ['-v', 'error', '-i', file, '-f', 'rawvideo', '-pix_fmt', 'gray', '-'], { encoding: 'buffer' });
+    const gray = run(FFMPEG, ['-v', 'error', '-i', file, '-f', 'rawvideo', '-pix_fmt', 'gray', '-'], { encoding: 'buffer' });
     const bright = gray.reduce((count, value) => count + (value > 128 ? 1 : 0), 0);
     if (bright >= 20) failures += 1;
     return `${bright < 20 ? 'PASS' : 'FAIL'}  ${selector} is dark: ${bright} bright pixels`;
