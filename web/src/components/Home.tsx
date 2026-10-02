@@ -54,7 +54,9 @@ const CARD = 'w-[calc(50%-1rem)] sm:w-48 m-2 flex-none text-left rounded-lg over
 const Card: React.FC<{ card: HomeCard; onPlay: (node: FileNode) => void }> = ({ card, onPlay }) => (
   <button type="button" className={CARD} onClick={() => onPlay(card.node)} title={`${card.node.name} — ${card.detail}`}>
     <Art art={card.art} title={card.title} audio={card.node.mimeType?.startsWith('audio/')} />
-    <span className="block px-3 pt-2 text-sm font-medium text-white truncate">{card.title}</span>
+    {/* Two lines, always the room for two, so a show's name and its episode fit
+        and every card in a row is the same height. */}
+    <span className="block px-3 pt-2 h-12 text-sm leading-5 font-medium text-white break-words line-clamp-2">{card.title}</span>
     <span className="block px-3 pb-2 text-xs text-gray-400 truncate">{card.detail}</span>
     {card.fraction > 0 && (
       <span className="block h-1 bg-gray-700">

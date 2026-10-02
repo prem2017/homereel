@@ -502,7 +502,9 @@ need an account to watch their own files.
     the bottom strip (`controlBarRef`, `resumeNoticeRef`, `upNextRef`) and the
     letterbox bar. **A new overlay there needs its ref added.**
   - shift is measured off the subtitle panel **body**, not `subPanelRef` (that wrapper
-    measures only the toggle button);
+    measures only the toggle button), and moves the top overlay too (padding on its
+    full-width row) - the panel opens up the right-hand side past the top of the
+    picture. None on a phone, where the panel is a sheet;
   - `pictureGeometry()` is the one measurement of the picture drawn inside the
     `object-contain` element; `known` is false until `loadedmetadata`, and always for
     `<audio>`;

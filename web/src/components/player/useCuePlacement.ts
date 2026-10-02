@@ -70,6 +70,9 @@ export const useCuePlacement = ({
   // from the other end. Mutable rather than a plain RefObject because it is set
   // from a ref callback - it only exists while a cue is on screen.
   const topOverlayRef = useRef<HTMLDivElement | null>(null);
+  // How far both subtitles move left to clear the open subtitle panel, as last
+  // measured - kept for the top overlay, which mounts afresh with every cue.
+  const shiftRef = useRef(0);
 
   // Where the film is actually drawn, which is not where the <video> element is.
   //
@@ -114,8 +117,13 @@ export const useCuePlacement = ({
   //
   // Geometry that is not known yet leaves `top` alone, so the class's own top-10
   // stands as the fallback.
+  //
+  // It moves left with the bottom cue while the subtitle panel is open: the panel
+  // opens up the right-hand side from the control bar, past the top of the
+  // picture. Padding on the full-width row, not a transform (Chromium 47).
   const placeTopSubtitle = useCallback((node: HTMLDivElement | null) => {
     if (!node) return;
+    node.style.paddingRight = `${shiftRef.current * 2}px`;
     const picture = pictureGeometry();
     if (!picture || !picture.known) return;
     node.style.top = `${Math.round(picture.letterbox + picture.height * PICTURE_EDGE_MARGIN)}px`;
@@ -194,6 +202,8 @@ export const useCuePlacement = ({
     const shift = subPanelBodyRef.current && !compact
       ? subPanelBodyRef.current.getBoundingClientRect().width / 2
       : 0;
+    shiftRef.current = shift;
+    if (topOverlayRef.current) topOverlayRef.current.style.paddingRight = `${shift * 2}px`;
 
     // Absolute, and stated twice. A line box is the taller of the cue's own
     // leading and the *strut* of the block it sits in, and that block's font is
